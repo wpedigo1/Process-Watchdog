@@ -1,7 +1,7 @@
 """
 Process Watchdog
 -----------------
-Runs in the system tray. Define rules like:
+Runs in the system tray. Define Watchdogs like:
   "When claude.exe disappears, force-kill claude.exe / claude_helper.exe"
 and it handles the cleanup automatically instead of you double-clicking
 a .bat file every time.
@@ -39,7 +39,7 @@ SYSTEM_PATH_HINTS = ("\\windows\\", "\\windows\\system32", "\\windows\\syswow64"
 DEFAULT_CONFIG = {
     "poll_interval": 2.0,
     "grace_seconds": 10.0,
-    "rules": []
+    "watchdogs": []
 }
 
 
@@ -48,7 +48,7 @@ DEFAULT_CONFIG = {
 # ---------------------------------------------------------------------------
 
 def _normalize_process_entry(e):
-    """Old rules stored plain strings; new ones store {"name","exe"} so
+    """Old Watchdogs stored plain strings; new ones store {"name","exe"} so
     matching can use the exact install path. Accept both transparently."""
     if isinstance(e, dict):
         return {"name": e.get("name") or "", "exe": e.get("exe") or ""}
@@ -65,10 +65,10 @@ def load_config():
             data = json.load(f)
         data.setdefault("poll_interval", DEFAULT_CONFIG["poll_interval"])
         data.setdefault("grace_seconds", DEFAULT_CONFIG["grace_seconds"])
-        data.setdefault("rules", [])
-        for rule in data["rules"]:
-            rule["trigger"] = [_normalize_process_entry(e) for e in rule.get("trigger", [])]
-            rule["kill"] = [_normalize_process_entry(e) for e in rule.get("kill", [])]
+        data.setdefault("watchdogs", [])
+        for watchdog in data["watchdogs"]:
+            watchdog["trigger"] = [_normalize_process_entry(e) for e in watchdog.get("trigger", [])]
+            watchdog["kill"] = [_normalize_process_entry(e) for e in watchdog.get("kill", [])]
         return data
     except Exception:
         return dict(DEFAULT_CONFIG)
@@ -138,7 +138,7 @@ def find_matching_processes(entries):
     silently also catch the wrong one.
 
     An entry with no path recorded (rare — access was denied when it was
-    first picked, or it's an old rule saved before path-tracking existed)
+    first picked, or it's an old watchdog saved before path-tracking existed)
     falls back to matching by name only, same as before."""
     path_targets = set()
     name_only_targets = set()
@@ -233,7 +233,7 @@ def animate_eaten(win, on_done, bites=7, bite_delay_ms=150):
 
 def open_trigger_names(entries):
     """Names of processes (from the given identity entries) that currently
-    own a visible top-level window — i.e. what's actually keeping this rule
+    own a visible top-level window — i.e. what's actually keeping this watchdog
     from firing right now. Empty list means nothing in the set looks 'open',
     so the grace-period countdown should be running."""
     procs = find_matching_processes(entries)
@@ -310,9 +310,9 @@ class Watcher(threading.Thread):
         self.get_config = get_config
         self.on_kill = on_kill
         self._stop = threading.Event()
-        self._was_running = {}  # rule_id -> bool
-        self._pending_kill_at = {}  # rule_id -> timestamp
-        self._open_names = {}  # rule_id -> [names currently blocking the rule]
+        self._was_running = {}  # watchdog_id -> bool
+        self._pending_kill_at = {}  # watchdog_id -> timestamp
+        self._open_names = {}  # watchdog_id -> [names currently blocking the watchdog]
 
     def stop(self):
         self._stop.set()
@@ -323,13 +323,13 @@ class Watcher(threading.Thread):
             grace = float(cfg.get("grace_seconds", 3.0))
             now = time.time()
 
-            for rule in cfg.get("rules", []):
-                rid = rule["id"]
-                if not rule.get("enabled", True):
+            for watchdog in cfg.get("watchdogs", []):
+                rid = watchdog["id"]
+                if not watchdog.get("enabled", True):
                     self._open_names.pop(rid, None)
                     continue
-                trigger = rule.get("trigger", [])
-                kill_list = rule.get("kill", [])
+                trigger = watchdog.get("trigger", [])
+                kill_list = watchdog.get("kill", [])
 
                 open_names = open_trigger_names(trigger)
                 self._open_names[rid] = open_names
@@ -350,18 +350,18 @@ class Watcher(threading.Thread):
                     self._pending_kill_at.pop(rid, None)
                     count = kill_processes(kill_list)
                     if count and self.on_kill:
-                        self.on_kill(rule.get("name", "Rule"), count)
+                        self.on_kill(watchdog.get("name", "watchdog"), count)
 
             time.sleep(float(cfg.get("poll_interval", 2.0)))
 
     def get_pending(self):
-        """rule_id -> seconds remaining until kill (only for rules currently pending)."""
+        """watchdog_id -> seconds remaining until kill (only for watchdogs currently pending)."""
         now = time.time()
         return {rid: max(0.0, at - now) for rid, at in self._pending_kill_at.items()}
 
     def get_open(self):
-        """rule_id -> names currently keeping that rule from firing (empty
-        list = nothing is blocking it). Lets the UI show exactly why a rule
+        """watchdog_id -> names currently keeping that watchdog from firing (empty
+        list = nothing is blocking it). Lets the UI show exactly why a watchdog
         looks stuck instead of a generic 'Watching' with no explanation."""
         return dict(self._open_names)
 
@@ -419,12 +419,12 @@ class ProcessPicker(tk.Frame):
     """Task-Manager-style grouped tree of running processes. Extended
     multi-select: click a group to grab every process under it, expand to
     pick individual helper processes, Ctrl/Shift-click to combine any
-    number of groups and/or individual processes into one rule. Includes
+    number of groups and/or individual processes into one watchdog. Includes
     a live filter box and a scrollbar (the list can be 100+ entries long).
 
     Selections are tracked by (name, exe_path) identity rather than name
     alone, and any selected process that isn't currently running (e.g.
-    editing a rule while the app is closed) is kept in its own section so
+    editing a watchdog while the app is closed) is kept in its own section so
     Save never silently drops it."""
 
     def __init__(self, master, initial=None):
@@ -532,16 +532,16 @@ class ProcessPicker(tk.Frame):
 
 
 # ---------------------------------------------------------------------------
-# Rule edit dialog
+# watchdog edit dialog
 # ---------------------------------------------------------------------------
 
-class RuleDialog(tk.Toplevel):
-    """Pick the process(es) this rule watches. Trigger and kill-target are
+class watchdogDialog(tk.Toplevel):
+    """Pick the process(es) this watchdog watches. Trigger and kill-target are
     the same process(es) — when they stop running, they get force-killed
     after the grace period (handles the case where they don't fully exit
     on their own)."""
 
-    def __init__(self, master, rule=None):
+    def __init__(self, master, watchdog=None):
         super().__init__(master)
         self.title("Watchdog")
         self.result = None
@@ -549,12 +549,12 @@ class RuleDialog(tk.Toplevel):
         self.minsize(420, 520)
         apply_window_icon(self)
 
-        rule = rule or {}
-        existing = rule.get("trigger") or rule.get("kill") or []
+        watchdog = watchdog or {}
+        existing = watchdog.get("trigger") or watchdog.get("kill") or []
 
         tk.Label(self, text="Watchdog name:").pack(anchor="w", padx=8, pady=(8, 0))
         self.name_entry = tk.Entry(self)
-        self.name_entry.insert(0, rule.get("name", ""))
+        self.name_entry.insert(0, watchdog.get("name", ""))
         self.name_entry.pack(fill="x", padx=8)
 
         self.picker = ProcessPicker(self, initial=existing)
@@ -714,10 +714,10 @@ class ConfigWindow:
 
         btn_row = tk.Frame(self.root)
         btn_row.pack(fill="x", padx=10, pady=(0, 10))
-        tk.Button(btn_row, text="Add Watchdog", command=self.add_rule).pack(side="left")
-        tk.Button(btn_row, text="Edit", command=self.edit_rule).pack(side="left", padx=6)
-        tk.Button(btn_row, text="Toggle Enabled", command=self.toggle_rule).pack(side="left")
-        tk.Button(btn_row, text="Delete", command=self.delete_rule).pack(side="left", padx=6)
+        tk.Button(btn_row, text="Add Watchdog", command=self.add_watchdog).pack(side="left")
+        tk.Button(btn_row, text="Edit", command=self.edit_watchdog).pack(side="left", padx=6)
+        tk.Button(btn_row, text="Toggle Enabled", command=self.toggle_watchdog).pack(side="left")
+        tk.Button(btn_row, text="Delete", command=self.delete_watchdog).pack(side="left", padx=6)
         tk.Button(btn_row, text="Hide to Tray", command=self.hide).pack(side="right")
         tk.Button(btn_row, text="User Guide", command=self.open_guide).pack(side="right", padx=(0, 6))
 
@@ -735,25 +735,25 @@ class ConfigWindow:
 
     def refresh_tree(self):
         self.tree.delete(*self.tree.get_children())
-        for rule in self.cfg["rules"]:
-            self.tree.insert("", tk.END, iid=rule["id"],
-                              values=(rule.get("name", ""),
-                                      "Yes" if rule.get("enabled", True) else "No",
-                                      "Watching" if rule.get("enabled", True) else "Disabled"))
+        for watchdog in self.cfg["watchdogs"]:
+            self.tree.insert("", tk.END, iid=watchdog["id"],
+                              values=(watchdog.get("name", ""),
+                                      "Yes" if watchdog.get("enabled", True) else "No",
+                                      "Watching" if watchdog.get("enabled", True) else "Disabled"))
 
     def _tick_status(self):
         """Runs every second: updates the Status column with a live countdown
-        for any rule whose trigger just closed, OR — if the rule hasn't
+        for any watchdog whose trigger just closed, OR — if the watchdog hasn't
         closed — exactly which process(es) are still keeping it open. That
-        second part matters: a rule that looks 'stuck' should tell you why
+        second part matters: a watchdog that looks 'stuck' should tell you why
         instead of just sitting there saying 'Watching' forever."""
         pending = self.watcher.get_pending() if self.watcher else {}
         opens = self.watcher.get_open() if self.watcher else {}
-        for rule in self.cfg["rules"]:
-            rid = rule["id"]
+        for watchdog in self.cfg["watchdogs"]:
+            rid = watchdog["id"]
             if not self.tree.exists(rid):
                 continue
-            if not rule.get("enabled", True):
+            if not watchdog.get("enabled", True):
                 status = "Disabled"
             elif rid in pending:
                 status = f"Killing in {int(pending[rid]) + 1}s"
@@ -771,55 +771,55 @@ class ConfigWindow:
                 self.tree.item(rid, values=vals)
         self.root.after(500, self._tick_status)
 
-    def _selected_rule(self):
+    def _selected_watchdog(self):
         sel = self.tree.selection()
         if not sel:
             return None
         rid = sel[0]
-        for rule in self.cfg["rules"]:
-            if rule["id"] == rid:
-                return rule
+        for watchdog in self.cfg["watchdogs"]:
+            if watchdog["id"] == rid:
+                return watchdog
         return None
 
-    def add_rule(self):
-        dlg = RuleDialog(self.root)
+    def add_watchdog(self):
+        dlg = watchdogDialog(self.root)
         self.root.wait_window(dlg)
         if dlg.result:
-            self.cfg["rules"].append(dlg.result)
+            self.cfg["watchdogs"].append(dlg.result)
             save_config(self.cfg)
             self.on_change(self.cfg)
             self.refresh_tree()
 
-    def edit_rule(self):
-        rule = self._selected_rule()
-        if not rule:
-            messagebox.showinfo(APP_NAME, "Select a rule first.")
+    def edit_watchdog(self):
+        watchdog = self._selected_watchdog()
+        if not watchdog:
+            messagebox.showinfo(APP_NAME, "Select a watchdog first.")
             return
-        dlg = RuleDialog(self.root, rule=rule)
+        dlg = watchdogDialog(self.root, watchdog=watchdog)
         self.root.wait_window(dlg)
         if dlg.result:
-            dlg.result["id"] = rule["id"]
-            dlg.result["enabled"] = rule.get("enabled", True)
-            self.cfg["rules"] = [dlg.result if r["id"] == rule["id"] else r for r in self.cfg["rules"]]
+            dlg.result["id"] = watchdog["id"]
+            dlg.result["enabled"] = watchdog.get("enabled", True)
+            self.cfg["watchdogs"] = [dlg.result if r["id"] == watchdog["id"] else r for r in self.cfg["watchdogs"]]
             save_config(self.cfg)
             self.on_change(self.cfg)
             self.refresh_tree()
 
-    def toggle_rule(self):
-        rule = self._selected_rule()
-        if not rule:
+    def toggle_watchdog(self):
+        watchdog = self._selected_watchdog()
+        if not watchdog:
             return
-        rule["enabled"] = not rule.get("enabled", True)
+        watchdog["enabled"] = not watchdog.get("enabled", True)
         save_config(self.cfg)
         self.on_change(self.cfg)
         self.refresh_tree()
 
-    def delete_rule(self):
-        rule = self._selected_rule()
-        if not rule:
+    def delete_watchdog(self):
+        watchdog = self._selected_watchdog()
+        if not watchdog:
             return
-        if messagebox.askyesno(APP_NAME, f"Delete Watchdog '{rule['name']}'?"):
-            self.cfg["rules"] = [r for r in self.cfg["rules"] if r["id"] != rule["id"]]
+        if messagebox.askyesno(APP_NAME, f"Delete Watchdog '{watchdog['name']}'?"):
+            self.cfg["watchdogs"] = [r for r in self.cfg["watchdogs"] if r["id"] != watchdog["id"]]
             save_config(self.cfg)
             self.on_change(self.cfg)
             self.refresh_tree()
@@ -940,8 +940,8 @@ def main():
     is_first_run = not os.path.exists(CONFIG_PATH)
     cfg = load_config()
 
-    def on_kill(rule_name, count):
-        print(f"[watchdog] {rule_name}: killed {count} process(es)")
+    def on_kill(watchdog_name, count):
+        print(f"[watchdog] {watchdog_name}: killed {count} process(es)")
 
     watcher = Watcher(get_config=lambda: config_window.cfg, on_kill=on_kill)
     config_window = ConfigWindow(cfg, on_change=lambda c: None, watcher=watcher)
@@ -975,7 +975,7 @@ def main():
 
     if is_first_run or not tray_ok:
         # First launch ever (no config yet) — show the window so there's
-        # actually something to set up rules with, instead of silently
+        # actually something to set up watchdogs with, instead of silently
         # dropping into the tray with nothing configured. Every launch
         # after that stays hidden as usual. Also shown as a fallback if
         # the tray icon itself failed to start (see above).
