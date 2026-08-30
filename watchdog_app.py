@@ -65,7 +65,11 @@ def load_config():
             data = json.load(f)
         data.setdefault("poll_interval", DEFAULT_CONFIG["poll_interval"])
         data.setdefault("grace_seconds", DEFAULT_CONFIG["grace_seconds"])
-        data.setdefault("watchdogs", [])
+        legacy_watchdogs = data.pop("rules", [])
+        if not data.get("watchdogs") and legacy_watchdogs:
+            data["watchdogs"] = legacy_watchdogs
+        else:
+            data.setdefault("watchdogs", [])
         for watchdog in data["watchdogs"]:
             watchdog["trigger"] = [_normalize_process_entry(e) for e in watchdog.get("trigger", [])]
             watchdog["kill"] = [_normalize_process_entry(e) for e in watchdog.get("kill", [])]

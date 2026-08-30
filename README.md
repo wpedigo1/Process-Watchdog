@@ -14,7 +14,7 @@ and force-kills the leftover processes automatically when the app closes.
 ## Using it
 
 - Launch `ProcessWatchdog.exe`. It opens a window and adds an icon to your system tray.
-- Click **Add Watchgog**:
+- Click **Add Watchdog**:
   - **Name** it (e.g. "Claude Desktop").
   - **Trigger process(es)**: pick the process(es) that represent "the app is open"
     (double-click in the list, or type the exe name manually if it's not currently running).
@@ -33,13 +33,13 @@ from running → not running, it waits a grace period (10 sec by default — adj
 in the app itself, top of the window) in case you're just relaunching the app, then
 kills everything in the kill list.
 
-The **Status** column shows a live countdown ("Killing in 7s"...) while a Watchgog is
+The **Status** column shows a live countdown ("Killing in 7s"...) while a Watchdog is
 in its grace period, so you can see exactly what's about to happen and when.
 
 ## Config file
 
-Watchgogs are stored in `%USERPROFILE%\.process_watchdog\config.json` — you can back this
-up or hand-edit it if you want to bulk-add Watchgogs.
+Watchdogs are stored in `%USERPROFILE%\.process_watchdog\config.json` — you can back this
+up or hand-edit it if you want to bulk-add Watchdogs.
 
 ## Startup on boot (optional)
 
