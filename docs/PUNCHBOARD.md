@@ -321,7 +321,7 @@ Final verification
 - Verify logo visibility in all required windows. [UNVERIFIED — blocked by startup defect]
 - Verify every bite-animation path. [UNVERIFIED — blocked by startup defect]
 - Build the one-file executable. [DONE by Mission 6B — build.bat completed, dist\ProcessWatchdog.exe produced]
-- Smoke-test the packaged executable. [FAILED by Mission 6B — exe crashes on launch with AttributeError, see docs/missions/6b-final-release-qa.md]
+- Smoke-test the packaged executable. [FAILED by Mission 6B — exe crashed on launch with AttributeError; root cause FIXED by Mission 6C (app now starts from source, crash.log clean), but the packaged-exe smoke test itself has NOT been re-run — re-verify in the Mission 6B re-run]
 - Verify bundled icons and images. [UNVERIFIED — blocked by startup defect]
 - Compare final executable size against baseline. [PASS by Mission 6B — 31,528,998 bytes vs 32,548,945 ceiling]
 - Compare idle memory against baseline. [BLOCKED — app never reaches idle/running state, no measurement possible]
@@ -331,7 +331,7 @@ Final verification
 - Commit only verified work. [PASS by Mission 6B — docs only; no source changed in this verification mission]
 Final acceptance gate
 - All requested behavior is present. [NOT MET — application cannot start]
-- All automated tests pass. [PASS — 87/87]
+- All automated tests pass. [PASS — 89/89 observed in Mission 6C (87 prior + 2 new ConfigWindow instantiation tests)]
 - Packaged runtime checks pass. [FAIL — packaged exe crashes on launch]
 - Existing Watchdogs remain usable. [UNVERIFIED — app cannot run]
 - Destructive behavior stays inside the approved boundary. [N/A this mission — nothing was launched or killed; disposable-only rule held]
@@ -339,9 +339,15 @@ Final acceptance gate
 - Resource limits pass. [PARTIAL — exe size PASS; runtime resources unmeasurable]
 - Repository is clean. [PASS]
 - Local and remote state are reported accurately. [PASS — commit/push verified in this mission]
-- [BLOCKER] Genuine startup defect found in Mission 6B: ConfigWindow.__init__ → _tick_status →
-  _update_toggle_label → self.toggle_btn (AttributeError, watchdog_ui.py:668/753/813) crashes the
-  app before toggle_btn exists (assigned at watchdog_ui.py:674). Appends a crash.log entry and
-  exits. Needs its own focused follow-up fix plus a regression test that instantiates ConfigWindow
-  with a watcher. See docs/missions/6b-final-release-qa.md.
+- [BLOCKER — FIXED by Mission 6C] Genuine startup defect found in Mission 6B:
+  ConfigWindow.__init__ → _tick_status → _update_toggle_label → self.toggle_btn
+  (AttributeError) crashed the app before toggle_btn existed. Mission 6C moved the
+  btn_row construction (through the toggle_btn.pack line) ahead of the
+  `if self.watcher: self._tick_status()` guard and added
+  tests/test_configwindow_init.py — real ConfigWindow+Watcher instantiation, the
+  exact coverage gap that let the defect through. App confirmed to start from
+  source (alive 12s, hidden to tray, crash.log unchanged). The Final acceptance
+  gate is still NOT met: Mission 6B's release QA must be RE-RUN from a fresh
+  build before any gate declaration. See docs/missions/6c-fix-startup-crash.md
+  and docs/missions/6b-final-release-qa.md.
 This is the complete punch board and contains the approved product behavior, safety boundaries, visual direction, resource limits, migration requirements, and final verification gates.

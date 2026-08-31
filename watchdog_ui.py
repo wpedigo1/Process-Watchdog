@@ -664,15 +664,16 @@ class ConfigWindow:
         self.tree.column("status", width=220, anchor="w")
         self.tree.pack(fill="both", expand=True, padx=10, pady=6)
 
-        if self.watcher:
-            self._tick_status()
-
         btn_row = tk.Frame(self.root)
         btn_row.pack(fill="x", padx=10, pady=(0, 10))
         tk.Button(btn_row, text="Add Watchdog", command=self.add_watchdog).pack(side="left")
         tk.Button(btn_row, text="Retrain", command=self.edit_watchdog).pack(side="left", padx=6)
         self.toggle_btn = tk.Button(btn_row, text="Put Dog on Watch", command=self.toggle_watchdog)
         self.toggle_btn.pack(side="left")
+
+        if self.watcher:
+            self._tick_status()
+
         tk.Button(btn_row, text="Rehome Dog", command=self.delete_watchdog).pack(side="left", padx=6)
         tk.Button(btn_row, text="Hide Dogs in the Doghouse", command=self.hide).pack(side="right")
         tk.Button(btn_row, text="Trainer's Guide", command=self.open_guide).pack(side="right", padx=(0, 6))
