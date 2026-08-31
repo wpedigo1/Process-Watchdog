@@ -34,7 +34,7 @@ Acceptance gate
 - Automated tests pass.
 - Resource use has not meaningfully changed.
 Mission 2 — Train and Retrain Watchdogs
-Status: ✅ Verified (Mission 2 complete — watch/meal model, Retrain dialog, config migration; see docs/missions/2-watch-meal-model.md)
+Status: ✅ Verified (Mission 2: watch/meal model, Retrain dialog, config migration all implemented and tested; one item — "Show a visible 40×40 logo in the header" below — is NOT done and is deferred to Mission 5's project-wide logo/theming, not bolted on early. See docs/missions/2-watch-meal-model.md.)
 Depends on: Mission 1
 Watchdog model
 - Every Watchdog watches exactly one application.
@@ -57,7 +57,7 @@ Configuration migration
 - Verify migrated data by reading it back.
 Add/Retrain window
 - Rename editing to Retrain.
-- Show a visible 40×40 logo in the header.
+- Show a visible 40×40 logo in the header. [DEFERRED to Mission 5 — see Mission 2 status line]
 - Use the heading Train a Watchdog when adding.
 - Use Retrain [Watchdog name] when editing.
 - Provide a dedicated Watch This App section.

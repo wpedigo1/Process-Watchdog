@@ -212,7 +212,8 @@ def _migrate_watchdog(watchdog):
     distinct_trigger = {_entry_key(e) for e in trigger if e.get("name")}
 
     if len(distinct_trigger) == 1:
-        app = _normalize_process_entry(trigger[0])
+        app_source = next(e for e in trigger if e.get("name"))
+        app = _normalize_process_entry(app_source)
         akey = _entry_key(app)
         meal = _dedupe_entries([e for e in kill if _entry_key(e) != akey])
     else:

@@ -75,6 +75,41 @@ class LoadConfigMigrationTests(unittest.TestCase):
         self.assertNotIn("trigger", result)
         self.assertNotIn("kill", result)
 
+    def test_empty_trigger_entry_first_does_not_steal_watched_app(self):
+        # A degenerate empty entry at the front of a legacy trigger list must
+        # not become the watched_app; the real named entry is chosen instead.
+        watchdog = {
+            "id": "wd1", "name": "WD", "enabled": True,
+            "trigger": [{"name": "", "exe": ""},
+                        {"name": "app.exe", "exe": r"C:\App\app.exe"}],
+            "kill": [{"name": "app.exe", "exe": r"C:\App\app.exe"}],
+        }
+        result = self._load({"watchdogs": [watchdog]})[0]
+        self.assertEqual(result["watched_app"], {"name": "app.exe", "exe": r"C:\App\app.exe"})
+
+    def test_empty_trigger_entry_position_does_not_change_result(self):
+        # Same correct result regardless of where the empty entry sits among
+        # multiple named entries of the (single) distinct watched-app identity.
+        cases = {
+            "middle": [{"name": "app.exe", "exe": r"C:\App\app.exe"},
+                       {"name": "", "exe": ""},
+                       {"name": "app.exe", "exe": r"C:\App\app.exe"}],
+            "last": [{"name": "app.exe", "exe": r"C:\App\app.exe"},
+                     {"name": "app.exe", "exe": r"C:\App\app.exe"},
+                     {"name": "", "exe": ""}],
+        }
+        for position, trigger in cases.items():
+            watchdog = {
+                "id": "wd1", "name": "WD", "enabled": True,
+                "trigger": trigger,
+                "kill": [{"name": "app.exe", "exe": r"C:\App\app.exe"}],
+            }
+            result = self._load({"watchdogs": [watchdog]})[0]
+            self.assertEqual(
+                result["watched_app"], {"name": "app.exe", "exe": r"C:\App\app.exe"},
+                msg=f"wrong watched_app for empty-entry position={position}",
+            )
+
     def test_zero_distinct_trigger_yields_null_watched_app_and_unchanged_meal(self):
         watchdog = {
             "id": "wd1", "name": "WD", "enabled": True,
