@@ -359,11 +359,12 @@ Final acceptance gate
   ProcessPicker's watched-app row now uses a supported Treeview tag instead of
   disabled=True. Real-Tk tests verify locked refresh and preservation of a manually
   added meal target. See docs/missions/6f-fix-add-and-retrain-crashes.md.
-- [DEFECT — defect 1, found by Mission 6D] get_process_groups lists the packaged
-  app's own parent ProcessWatchdog.exe (pid-only self-exclusion; processwatchdog.exe
-  not in PROTECTED_PROCESS_NAMES). Display-level "never show ProcessWatchdog.exe"
-  violation; kill boundary still protected. Low severity.
-- The Final acceptance gate is NOT met. Mission 6D defect 1 (picker parent-pid
-  display) remains open, and the full release-QA requires another run after Missions
-  6E and 6F. See docs/missions/6d-final-release-qa-rerun.md for all observed evidence.
+- [DEFECT — picker parent self-display, found by Mission 6D — FIXED by Mission 6G]
+  get_process_groups now reuses _is_self, excluding both the running child PID and a
+  different-PID PyInstaller parent with the same executable path. A mocked process-group
+  regression test covers the exe-path match. See
+  docs/missions/6g-fix-picker-parent-display.md.
+- All four defects found by Mission 6D are closed by Missions 6E, 6F, and 6G. The Final
+  acceptance gate is NOT met until the full release-QA checklist is rerun end-to-end
+  against this fixed code. See docs/missions/6d-final-release-qa-rerun.md.
 This is the complete punch board and contains the approved product behavior, safety boundaries, visual direction, resource limits, migration requirements, and final verification gates.

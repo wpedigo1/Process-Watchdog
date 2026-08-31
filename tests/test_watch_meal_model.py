@@ -50,7 +50,14 @@ class ProcessGroupSelfExclusionTests(unittest.TestCase):
 
     class _FakeProc:
         def __init__(self, pid, name, exe="", username="wpedi"):
+            self.pid = pid
             self.info = {"pid": pid, "name": name, "exe": exe, "username": username}
+
+        def name(self):
+            return self.info["name"]
+
+        def exe(self):
+            return self.info["exe"]
 
     def test_self_process_is_excluded_from_groups(self):
         external = self._FakeProc(999999, "app.exe", r"C:\Apps\App\app.exe")
@@ -66,6 +73,15 @@ class ProcessGroupSelfExclusionTests(unittest.TestCase):
         with patch.object(watchdog_app.psutil, "process_iter", return_value=[own]):
             groups = watchdog_app.get_process_groups(hide_system=True)
         self.assertEqual(groups, [])
+
+    def test_self_exe_path_with_different_pid_is_excluded_from_groups(self):
+        external = self._FakeProc(999998, "app.exe", r"C:\Apps\App\app.exe")
+        own_parent = self._FakeProc(999999, "ProcessWatchdog.exe", watchdog_app.sys.executable)
+        with patch.object(watchdog_app.psutil, "process_iter", return_value=[external, own_parent]):
+            groups = watchdog_app.get_process_groups(hide_system=True)
+        names = {n for label, entries in groups for n, _ in entries}
+        self.assertIn("app.exe", names)
+        self.assertNotIn("ProcessWatchdog.exe", names)
 
 
 if __name__ == "__main__":

@@ -535,7 +535,7 @@ def get_process_groups(hide_system=True):
         try:
             if hide_system and is_system_process(proc):
                 continue
-            if proc.info.get("pid") == os.getpid():
+            if _is_self(proc):
                 # Never offer Process Watchdog's own running instance as a target.
                 continue
             name = proc.info.get("name") or ""
