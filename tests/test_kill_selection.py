@@ -1,4 +1,5 @@
 import os
+import sys
 import unittest
 from unittest.mock import patch
 
@@ -91,17 +92,46 @@ class KillSelectionTests(unittest.TestCase):
         self.assertEqual(fake.kill_calls, 1)
         self.assertEqual(child.kill_calls, 1, "same pid reached twice must be killed once")
 
-    def test_own_pid_not_excluded_current_behavior(self):
-        # Documents the current behavior: kill_processes has no self-PID guard,
-        # so if Process Watchdog's own process matched a kill list it would be
-        # selected for termination. Punch board may change this.
+    def test_own_pid_is_excluded_from_kill(self):
+        # Process Watchdog must never terminate itself, even if its own
+        # process were ever matched by a kill list. The own PID is excluded
+        # before the kill loop, so it is never entered into the kill set.
         self_pid = os.getpid()
         own = FakeProc(self_pid, info={"pid": self_pid, "name": "app.exe", "exe": APP_EXE})
         with patch.object(watchdog_app, "find_matching_processes", return_value=[own]), \
              patch.object(watchdog_app.psutil, "process_iter", return_value=[]):
             result = watchdog_app.kill_processes([ENTRY])
-        self.assertEqual(result, 1)
-        self.assertEqual(own.kill_calls, 1, "current implementation does not exclude its own PID")
+        self.assertEqual(result, 0)
+        self.assertEqual(own.kill_calls, 0, "own PID must never receive kill()")
+
+    def test_self_excluded_by_exe_path_even_with_different_pid(self):
+        # A process that is really Process Watchdog but reported under a
+        # different PID is still excluded by matching its exe path against
+        # sys.executable through the same normalization used everywhere else.
+        own = FakeProc(99999, info={"pid": 99999, "name": "watchdog.exe", "exe": sys.executable})
+        with patch.object(watchdog_app, "find_matching_processes", return_value=[own]), \
+             patch.object(watchdog_app.psutil, "process_iter", return_value=[]):
+            result = watchdog_app.kill_processes([ENTRY])
+        self.assertEqual(result, 0)
+        self.assertEqual(own.kill_calls, 0, "self matched by exe path must never receive kill()")
+
+    def test_self_excluded_when_reached_via_install_directory_expansion(self):
+        # Self must be excluded even when it would otherwise be reached via
+        # install-directory expansion (its exe lives in the same directory as
+        # a legitimately matched, unrelated target) — proving the single
+        # merge-point exclusion covers all three kill sources, not just the
+        # direct-match source.
+        install_dir = os.path.dirname(sys.executable)
+        target_exe = os.path.join(install_dir, "unrelated-app.exe")
+        target = FakeProc(1, info={"pid": 1, "name": "unrelated-app.exe", "exe": target_exe})
+        self_proc = FakeProc(99998, info={"pid": 99998, "name": "watchdog.exe", "exe": sys.executable})
+        with patch.object(watchdog_app, "find_matching_processes", return_value=[target]), \
+             patch.object(watchdog_app.psutil, "process_iter", return_value=[self_proc]):
+            result = watchdog_app.kill_processes([ENTRY])
+        self.assertEqual(result, 1, "legitimately matched target is still killed")
+        self.assertEqual(target.kill_calls, 1)
+        self.assertEqual(self_proc.kill_calls, 0,
+                         "self reached via install-directory expansion must never receive kill()")
 
 
 if __name__ == "__main__":

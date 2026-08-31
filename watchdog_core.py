@@ -120,6 +120,21 @@ def _norm_path(p):
     return (p or "").strip().lower()
 
 
+def _is_self(proc):
+    """True if the given process identity is Process Watchdog itself.
+
+    Matched on EITHER the pid (os.getpid()) OR the exe path normalized
+    through _norm_path against sys.executable. Both are checked because a
+    process that is really us might be reported under a different pid, or
+    its exe might be unavailable (access denied), mirroring this file's
+    existing honest handling of that case."""
+    if proc.pid == os.getpid():
+        return True
+    if _norm_path(proc.info.get("exe")) == _norm_path(sys.executable):
+        return True
+    return False
+
+
 def find_matching_processes(entries):
     """Currently running processes that match any of the given identity
     entries — each entry is {"name": ..., "exe": ...}.
@@ -240,6 +255,13 @@ def kill_processes(entries):
                     to_kill[proc.info["pid"]] = proc
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 continue
+
+    # Never terminate Process Watchdog itself. Filter once at the point
+    # where all three kill sources (direct matches, descendants, and other
+    # binaries installed beneath a matched project) have already merged, so
+    # self is excluded from the kill set entirely — there is exactly one
+    # place to verify, and self can never be reached via any source path.
+    to_kill = {pid: proc for pid, proc in to_kill.items() if not _is_self(proc)}
 
     killed = 0
     for proc in to_kill.values():

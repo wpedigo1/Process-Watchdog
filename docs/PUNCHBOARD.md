@@ -84,7 +84,7 @@ Acceptance gate
 - Protected targets cannot be added through any UI path.
 - Tests cover migration and selection behavior.
 Mission 3 — Safe Feeding Engine
-Status: ⬜ Planned
+Status: ⬜ Planned (partial: feeding-engine self-exclusion closed by Mission 1C — see note under Permanent protection; SYSTEM/protected/UI-wide protection still open)
 Depends on: Mission 2
 Trigger behavior
 - Preserve current Windows visible-window logic.
@@ -112,6 +112,13 @@ Target behavior
 Permanent protection
 - Never show or target ProcessWatchdog.exe.
 - Never allow Process Watchdog to eat itself.
+- [CLOSED for the feeding engine by Mission 1C] kill_processes excludes
+  Process Watchdog's own process (by pid == os.getpid() OR exe ==
+  sys.executable, normalized) at the single merge point where all three
+  kill sources (direct match, descendants, install-directory expansion)
+  converge. This governs the feeding engine only; the picker/filter/UI-wide
+  "never show or target ProcessWatchdog.exe" enforcement, and the
+  SYSTEM/protected-process/protected-path exclusions, remain open.
 - Exclude SYSTEM, LOCAL SERVICE, and NETWORK SERVICE processes.
 - Exclude protected Windows executables.
 - Exclude executables under protected Windows system directories.
