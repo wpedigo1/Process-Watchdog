@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
 
-import watchdog_app
+import watchdog_core as watchdog_app
 
 
 def _make_watchdog(enabled=True):

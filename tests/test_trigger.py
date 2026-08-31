@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
 
-import watchdog_app
+import watchdog_core as watchdog_app
 
 
 class FakeProc:
@@ -42,8 +42,12 @@ class OpenTriggerNamesTests(unittest.TestCase):
         with patch.object(watchdog_app, "find_matching_processes", return_value=procs), \
              patch.object(watchdog_app, "_get_visible_window_pids", return_value={10, 11, 12, 13, 14}):
             result = watchdog_app.open_trigger_names([{"name": "app.exe", "exe": ""}])
-        # documents current behavior: exact-case set dedup, then sort by key=str.lower
-        self.assertEqual(result, ["alpha.exe", "Alpha.exe", "beta.exe", "zebra.exe"])
+        # documents current behavior: exact-case set dedup, then sort by key=str.lower.
+        # The relative order of entries sharing one lowercase key (alpha.exe vs Alpha.exe)
+        # preserves the set's iteration order and is not deterministic, so only the
+        # deduplicated multiset and the case-insensitive sorted-ness are asserted.
+        self.assertEqual(set(result), {"zebra.exe", "alpha.exe", "Alpha.exe", "beta.exe"})
+        self.assertEqual(sorted(result, key=str.lower), result)
 
 
 if __name__ == "__main__":

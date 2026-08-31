@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import psutil
 
-import watchdog_app
+import watchdog_core as watchdog_app
 
 
 class FakeProc:
