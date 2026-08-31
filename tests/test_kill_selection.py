@@ -23,6 +23,15 @@ class FakeProc:
     def info(self):
         return self._info
 
+    def name(self):
+        # Real psutil.Process exposes name()/exe() as live-call methods;
+        # FakeProc originally lacked them because production code only read
+        # the .info cache. They mirror the same values.
+        return self._info.get("name", "")
+
+    def exe(self):
+        return self._info.get("exe", "")
+
     def children(self, recursive=True):
         return list(self._children)
 

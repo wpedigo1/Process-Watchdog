@@ -308,8 +308,8 @@ Final verification
 - Run syntax and import validation. [PASS by Missions 6B/6C — ast.parse + import OK; 89 source-level test methods]
 - Verify copied real configuration migration. [PASS by Mission 6D — real legacy `rules` config migrated via copy; all 5 watchdogs and every identity preserved; real file hash-verified untouched]
 - Confirm the live configuration remains unchanged during testing. [PASS by Mission 6D — sha256 identical before/after the whole mission]
-- Verify Add, Retrain, toggle, Rehome, and grace-period behavior. [FAIL by Mission 6D — Add crashes (defect 2), Retrain-with-watched-app crashes and Retrain-ambiguous silently drops meal targets (defect 3); toggle PASS; Rehome PASS (exact dialog text, Keep/Rehome both verified); grace countdown PASS but the kill itself is broken (defect 4)]
-- Verify unrelated selected leftovers are eaten in a controlled test. [BLOCKED by Mission 6D — defect 4 kills the Watcher thread before any kill; leftover survived because nothing was killed]
+- Verify Add, Retrain, toggle, Rehome, and grace-period behavior. [FAIL by Mission 6D — Add crashes (defect 2), Retrain-with-watched-app crashes and Retrain-ambiguous silently drops meal targets (defect 3); toggle PASS; Rehome PASS (exact dialog text, Keep/Rehome both verified); grace countdown PASS; the kill-engine crash (defect 4) is now FIXED by Mission 6E with real-process regression tests, but the end-to-end grace-kill walkthrough has not been re-run — re-verify in the next release-QA pass]
+- Verify unrelated selected leftovers are eaten in a controlled test. [BLOCKED at runtime by Mission 6D's defect 4 (now FIXED by Mission 6E — real parent+child kill verified at the engine level in tests/test_kill_real_processes.py); the full end-to-end leftover walkthrough still needs the next release-QA re-run]
 - Verify unselected same-folder processes survive. [UNVERIFIED at runtime by Mission 6D — vacuous pass only (defect 4 prevented any kill); scoping logic unit-covered]
 - Verify protected processes and Process Watchdog never appear. [PARTIAL by Mission 6D — own pid excluded (verified); Browse + name-only protected rejection verified with exact Mission 3 message; BUT defect 1: the packaged app's own parent ProcessWatchdog.exe IS listed in its picker (display-level violation; kill boundary still protected)]
 - Verify main X hides without exiting. [PASS by Mission 6D — real WM_DELETE_WINDOW path, animation, withdrawn, process alive]
@@ -339,13 +339,18 @@ Final acceptance gate
 - Resource limits pass. [PASS — all measured values within limits]
 - Repository is clean. [PASS]
 - Local and remote state are reported accurately. [PASS — commit/push verified per mission]
-- [BLOCKER — defect 4, found by Mission 6D] kill_processes' protection filter
-  (watchdog_core.py:388-394) reads proc.info on descendant processes from
-  proc.children(), which are plain psutil.Process objects without .info →
-  AttributeError → the Watcher thread dies → NO kill ever happens for any matched
-  process with descendants (every multi-process app). Core feature broken end-to-end.
-  The suite passes because test fakes give children .info. Needs a fix + regression
-  tests using REAL psutil process shapes.
+- [BLOCKER — defect 4 — FIXED by Mission 6E] kill_processes' protection filter
+  read .info on descendant processes from proc.children(), which are plain
+  psutil.Process objects without .info → AttributeError → the Watcher thread
+  died → no kill ever happened for any matched process with descendants.
+  Mission 6E added _live_identity (live name()/exe() calls with honest
+  NoSuchProcess/AccessDenied fallbacks) and used it in _is_self, the
+  merge-point protection filter, and the kill-loop name read (a third .info
+  site the original brief missed, fixed and documented as a boundary
+  conflict). tests/test_kill_real_processes.py proves the fix with REAL
+  psutil.Process objects and a real spawned parent+child kill — the exact
+  shape FakeProc cannot represent. 94/94 tests pass (89 unchanged + 5 new).
+  See docs/missions/6e-fix-kill-engine-info-crash.md.
 - [BLOCKER — defect 2, found by Mission 6D] watchdogDialog.__init__ crashes on
   watchdog=None (watchdog_ui.py:300 uses watchdog.get before the `watchdog or {}`
   normalization at :305; introduced by Mission 5 2e87354). The Add Watchdog button

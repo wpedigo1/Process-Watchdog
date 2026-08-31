@@ -124,6 +124,22 @@ def _norm_path(p):
     return (p or "").strip().lower()
 
 
+def _live_identity(proc):
+    """Read a process's name/exe via live calls, not the .info cache (which
+    is only populated for process_iter results, not .children()). Honest
+    fallback on NoSuchProcess/AccessDenied, matching this file's existing
+    error-handling convention elsewhere."""
+    try:
+        name = proc.name()
+    except (psutil.NoSuchProcess, psutil.AccessDenied):
+        name = ""
+    try:
+        exe = proc.exe()
+    except (psutil.NoSuchProcess, psutil.AccessDenied):
+        exe = ""
+    return name, exe
+
+
 def _is_self(proc):
     """True if the given process identity is Process Watchdog itself.
 
@@ -134,7 +150,7 @@ def _is_self(proc):
     existing honest handling of that case."""
     if proc.pid == os.getpid():
         return True
-    if _norm_path(proc.info.get("exe")) == _norm_path(sys.executable):
+    if _norm_path(_live_identity(proc)[1]) == _norm_path(sys.executable):
         return True
     return False
 
@@ -385,20 +401,25 @@ def kill_processes(entries, detail=False):
     # identities are excluded from the kill set entirely — there is exactly
     # one place to verify, and neither can ever be reached via any source
     # path.
+    def _unprotected(proc):
+        if _is_self(proc):
+            return False
+        name, exe = _live_identity(proc)
+        if is_protected_entry({"name": name, "exe": exe}):
+            return False
+        return not _is_protected_owner(proc)
+
     to_kill = {
         pid: proc
         for pid, proc in to_kill.items()
-        if not _is_self(proc)
-        and not is_protected_entry({"name": proc.info.get("name", ""),
-                                    "exe": proc.info.get("exe", "")})
-        and not _is_protected_owner(proc)
+        if _unprotected(proc)
     }
 
     killed = 0
     killed_names = []
     failed_names = []
     for proc in to_kill.values():
-        name = proc.info.get("name")
+        name = _live_identity(proc)[0]
         try:
             proc.kill()
             killed += 1
