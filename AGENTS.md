@@ -109,10 +109,12 @@ The current configuration contract uses keys including:
 {
   "poll_interval": 2.0,
   "grace_seconds": 10.0,
-  "rules": []
+  "watchdogs": []
 }
-The internal word rules may remain even when the UI calls them “Watchdogs.” User-facing terminology does not justify breaking the persisted schema.
-Do not rename rules to watchdogs, change process-entry shapes, or otherwise alter persisted fields without a backward-compatible migration.
+The persisted key is watchdogs. Configurations written by older versions use rules, and
+load_config migrates a legacy rules key into watchdogs on read. Both must continue to load.
+Do not drop legacy rules support, change process-entry shapes, or otherwise alter persisted
+fields without a backward-compatible migration.
 Any configuration schema change must:
 1. Load existing configurations without losing watchdogs.
 2. Preserve IDs, names, enabled states, triggers, and kill targets.

@@ -2,74 +2,72 @@
 
 @AGENTS.md
 
-`AGENTS.md` is the canonical ModelMix project instruction file.
-
+`AGENTS.md` is the canonical Process Watchdog project instruction file.
 Follow it as the source of truth.
-
 Do not duplicate or reinterpret those rules here.
 
-## Claude-Specific Working Rules
+## Working Rules
 
 Before editing:
 
 1. Read `AGENTS.md`.
 2. Inspect the relevant implementation and tests.
-3. Search the repository for existing working patterns.
-4. Trace the affected state/data path before introducing new abstractions.
-5. Prefer the smallest change consistent with existing ModelMix architecture.
+3. Search the repository for an existing working pattern before inventing a new one.
+4. Trace the affected state and call path before introducing new abstractions.
+5. Prefer the smallest change that fully satisfies the request.
 
 For routine, well-defined tasks, inspect and proceed without stopping for plan approval.
 
-Ask before implementation only when a material ambiguity, destructive action, security issue, architectural conflict, or major product decision cannot be resolved from the repository and project instructions.
+Ask before implementing only when a material ambiguity, destructive action, or product decision
+cannot be resolved from the repository and the project instructions. In particular, ask when the
+answer would change which processes are watched, which processes are terminated, or whether
+existing user configurations remain loadable.
 
-For broad architectural changes, authentication/credential changes, persistence redesign, or major cross-cutting refactors, provide a short implementation plan before editing.
+For changes to configuration persistence, process matching, termination scope, or the watcher
+threading model, provide a short implementation plan before editing.
 
 ## Repository Behavior
 
-Do not treat previous Claude sessions, mission reports, summaries, commit SHAs, branch names, or PASS statements as proof of current repository state.
-
-Inspect the actual repository.
+Do not treat previous sessions, mission reports, summaries, commit SHAs, branch names, or PASS
+statements as proof of current repository state. Inspect the actual repository.
 
 Do not:
 
-* create a second implementation beside an existing working path;
-* replace established ModelMix infrastructure merely because another pattern is stylistically preferable;
-* broaden a focused mission into cleanup or redesign;
-* resurrect Council/Advisor/debate architecture;
-* silently change locked ModelMix decisions.
+- create a second implementation beside an existing working path;
+- broaden a focused task into cleanup or redesign;
+- broadly reformat or rewrite `watchdog_app.py`;
+- add dependencies, frameworks, services, or databases that the task does not require;
+- silently change grace-period limits, polling intervals, startup behavior, process matching,
+  or termination scope.
 
-When project documentation and repository behavior conflict, identify the conflict instead of silently resolving it.
+When project documentation and repository behavior conflict, identify the conflict instead of
+silently resolving it.
 
 ## Validation
 
-Use the repository's actual commands and configuration.
+Use the repository's actual commands and configuration. Do not invent test, lint, or build
+commands.
 
-Do not invent test, lint, build, or type-check commands.
-
-Run the narrowest relevant validation first, followed by broader validation justified by the change.
+Run the narrowest relevant validation first, then broader validation justified by the change.
 
 Never report a command as successful unless its successful result was observed.
 
-Before reporting completion, review the final diff for:
+Process termination is destructive. Verify termination selection logic with mocked unit tests.
+Do not terminate the user's real applications to validate a change. `build.bat` terminates any
+running `ProcessWatchdog.exe` and deletes build output, so do not run it unless the task
+explicitly calls for a clean packaged build.
 
-* unintended files;
-* unrelated refactors;
-* accidental formatting churn;
-* leaked credentials;
-* broken worker isolation;
-* duplicated state ownership;
-* architectural drift.
+Before reporting completion, review the final diff for unintended files, unrelated refactors,
+accidental formatting churn, and exposed user configuration paths.
 
 ## Completion Report
 
-Keep the final report short.
+Keep it short. Include:
 
-Include:
+- what changed;
+- files changed;
+- validation actually run, with observed results;
+- material assumptions;
+- unresolved failures or risks.
 
-* what changed;
-* files changed;
-* validation actually run and results;
-* material assumptions;
-* unresolved failures or risks.
-
-Never claim external actions or successful state that was not directly verified.
+Never claim an external action or a successful state that was not directly verified.
