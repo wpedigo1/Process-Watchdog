@@ -304,39 +304,44 @@ Trainer’s Guide
 - Keep instructions concise and accurate. [CLOSED by Mission 6A]
 - End manual or timed closure with the bite animation. [CLOSED — already true; wiring verified pre-existing]
 Final verification
-- Run the complete automated test suite.
-- Run syntax and import validation.
-- Verify copied real configuration migration.
-- Confirm the live configuration remains unchanged during testing.
-- Verify Add, Retrain, toggle, Rehome, and grace-period behavior.
-- Verify unrelated selected leftovers are eaten in a controlled test.
-- Verify unselected same-folder processes survive.
-- Verify protected processes and Process Watchdog never appear.
-- Verify main X hides without exiting.
-- Verify doghouse button hides without exiting.
-- Verify tray Quit exits.
-- Verify Start with Windows behavior.
-- Verify light and dark themes.
-- Verify theme refresh after leaving the doghouse.
-- Verify logo visibility in all required windows.
-- Verify every bite-animation path.
-- Build the one-file executable.
-- Smoke-test the packaged executable.
-- Verify bundled icons and images.
-- Compare final executable size against baseline.
-- Compare idle memory against baseline.
-- Compare CPU, threads, handles, and polling behavior.
-- Confirm every hard resource limit passes.
-- Inspect the final diff for unrelated changes.
-- Commit only verified work.
+- Run the complete automated test suite. [DONE by Mission 6B — 87/87 PASS]
+- Run syntax and import validation. [PASS by Mission 6B — ast.parse + import OK, source-level 87 test methods verified]
+- Verify copied real configuration migration. [UNVERIFIED by Mission 6B — app crashes on startup, cannot run; see docs/missions/6b-final-release-qa.md]
+- Confirm the live configuration remains unchanged during testing. [PASS by Mission 6B — never read for content or modified]
+- Verify Add, Retrain, toggle, Rehome, and grace-period behavior. [UNVERIFIED — blocked by startup defect]
+- Verify unrelated selected leftovers are eaten in a controlled test. [UNVERIFIED — blocked by startup defect]
+- Verify unselected same-folder processes survive. [UNVERIFIED — blocked by startup defect]
+- Verify protected processes and Process Watchdog never appear. [UNVERIFIED — blocked by startup defect]
+- Verify main X hides without exiting. [UNVERIFIED — blocked by startup defect]
+- Verify doghouse button hides without exiting. [UNVERIFIED — blocked by startup defect]
+- Verify tray Quit exits. [UNVERIFIED — blocked by startup defect]
+- Verify Start with Windows behavior. [UNVERIFIED — blocked by startup defect]
+- Verify light and dark themes. [UNVERIFIED — blocked by startup defect]
+- Verify theme refresh after leaving the doghouse. [UNVERIFIED — blocked by startup defect]
+- Verify logo visibility in all required windows. [UNVERIFIED — blocked by startup defect]
+- Verify every bite-animation path. [UNVERIFIED — blocked by startup defect]
+- Build the one-file executable. [DONE by Mission 6B — build.bat completed, dist\ProcessWatchdog.exe produced]
+- Smoke-test the packaged executable. [FAILED by Mission 6B — exe crashes on launch with AttributeError, see docs/missions/6b-final-release-qa.md]
+- Verify bundled icons and images. [UNVERIFIED — blocked by startup defect]
+- Compare final executable size against baseline. [PASS by Mission 6B — 31,528,998 bytes vs 32,548,945 ceiling]
+- Compare idle memory against baseline. [BLOCKED — app never reaches idle/running state, no measurement possible]
+- Compare CPU, threads, handles, and polling behavior. [BLOCKED — app never reaches idle/running state]
+- Confirm every hard resource limit passes. [PARTIAL — exe size PASS; memory/CPU/threads/handles cannot be measured due to startup defect]
+- Inspect the final diff for unrelated changes. [PASS by Mission 6B — clean working tree]
+- Commit only verified work. [PASS by Mission 6B — docs only; no source changed in this verification mission]
 Final acceptance gate
-- All requested behavior is present.
-- All automated tests pass.
-- Packaged runtime checks pass.
-- Existing Watchdogs remain usable.
-- Destructive behavior stays inside the approved boundary.
-- Dog terminology is consistent.
-- Resource limits pass.
-- Repository is clean.
-- Local and remote state are reported accurately.
+- All requested behavior is present. [NOT MET — application cannot start]
+- All automated tests pass. [PASS — 87/87]
+- Packaged runtime checks pass. [FAIL — packaged exe crashes on launch]
+- Existing Watchdogs remain usable. [UNVERIFIED — app cannot run]
+- Destructive behavior stays inside the approved boundary. [N/A this mission — nothing was launched or killed; disposable-only rule held]
+- Dog terminology is consistent. [UNVERIFIED — cannot view UI]
+- Resource limits pass. [PARTIAL — exe size PASS; runtime resources unmeasurable]
+- Repository is clean. [PASS]
+- Local and remote state are reported accurately. [PASS — commit/push verified in this mission]
+- [BLOCKER] Genuine startup defect found in Mission 6B: ConfigWindow.__init__ → _tick_status →
+  _update_toggle_label → self.toggle_btn (AttributeError, watchdog_ui.py:668/753/813) crashes the
+  app before toggle_btn exists (assigned at watchdog_ui.py:674). Appends a crash.log entry and
+  exits. Needs its own focused follow-up fix plus a regression test that instantiates ConfigWindow
+  with a watcher. See docs/missions/6b-final-release-qa.md.
 This is the complete punch board and contains the approved product behavior, safety boundaries, visual direction, resource limits, migration requirements, and final verification gates.
