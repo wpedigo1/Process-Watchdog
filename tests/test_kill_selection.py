@@ -9,12 +9,15 @@ import watchdog_core as watchdog_app
 
 
 class FakeProc:
-    def __init__(self, pid, info=None, children=(), kill_exc=None):
+    def __init__(self, pid, info=None, children=(), kill_exc=None,
+                 username_val=None, username_exc=None):
         self.pid = pid
         self._info = info if info is not None else {"name": "x.exe", "exe": ""}
         self._children = list(children)
         self.kill_calls = 0
         self._kill_exc = kill_exc
+        self._username_val = username_val
+        self._username_exc = username_exc
 
     @property
     def info(self):
@@ -28,6 +31,11 @@ class FakeProc:
         if self._kill_exc is not None:
             raise self._kill_exc
         return None
+
+    def username(self):
+        if self._username_exc is not None:
+            raise self._username_exc
+        return self._username_val
 
 
 APP_EXE = r"C:\App\app.exe"
@@ -150,16 +158,95 @@ class KillSelectionTests(unittest.TestCase):
     def test_protected_system_identity_is_never_killed(self):
         # A matched entry whose live resolution is a protected core OS
         # identity (here a system32 path, explicitly NOT self) must never be
-        # killed. The _is_self check alone would not catch this identity —
+        # killed. The _is_self check alone would not catch this identity --
         # the is_protected_entry filter closes that defense-in-depth gap.
         sys_proc = FakeProc(777, info={"pid": 777, "name": "something.exe",
-                                       "exe": r"C:\Windows\System32\something.exe"})
+                                        "exe": r"C:\Windows\System32\something.exe"})
         with patch.object(watchdog_app, "find_matching_processes", return_value=[sys_proc]), \
              patch.object(watchdog_app.psutil, "process_iter", return_value=[]):
             result = watchdog_app.kill_processes([ENTRY])
         self.assertEqual(result, 0)
         self.assertEqual(sys_proc.kill_calls, 0,
                          "protected system identity must never receive kill()")
+
+    def test_system_owned_username_is_not_killed(self):
+        # Criterion 1: a matched process whose username() returns a
+        # SYSTEM-owned account is never killed.
+        proc = FakeProc(10, info={"name": "app.exe", "exe": APP_EXE},
+                        username_val="NT AUTHORITY\\SYSTEM")
+        with patch.object(watchdog_app, "find_matching_processes", return_value=[proc]), \
+             patch.object(watchdog_app.psutil, "process_iter", return_value=[]):
+            result = watchdog_app.kill_processes([ENTRY])
+        self.assertEqual(result, 0)
+        self.assertEqual(proc.kill_calls, 0,
+                         "SYSTEM-owned process must not be killed")
+
+    def test_local_service_username_is_not_killed(self):
+        # Criterion 2: LOCAL SERVICE account is also excluded.
+        proc = FakeProc(11, info={"name": "app.exe", "exe": APP_EXE},
+                        username_val="NT AUTHORITY\\LOCAL SERVICE")
+        with patch.object(watchdog_app, "find_matching_processes", return_value=[proc]), \
+             patch.object(watchdog_app.psutil, "process_iter", return_value=[]):
+            result = watchdog_app.kill_processes([ENTRY])
+        self.assertEqual(result, 0)
+        self.assertEqual(proc.kill_calls, 0,
+                         "LOCAL SERVICE process must not be killed")
+
+    def test_network_service_username_is_not_killed(self):
+        # Criterion 2: NETWORK SERVICE account is also excluded.
+        proc = FakeProc(12, info={"name": "app.exe", "exe": APP_EXE},
+                        username_val="NT AUTHORITY\\NETWORK SERVICE")
+        with patch.object(watchdog_app, "find_matching_processes", return_value=[proc]), \
+             patch.object(watchdog_app.psutil, "process_iter", return_value=[]):
+            result = watchdog_app.kill_processes([ENTRY])
+        self.assertEqual(result, 0)
+        self.assertEqual(proc.kill_calls, 0,
+                         "NETWORK SERVICE process must not be killed")
+
+    def test_system_owned_recursive_child_is_not_killed(self):
+        # Criterion 3: a recursive child (not the direct match) whose
+        # username() returns SYSTEM is also excluded -- proves the check
+        # covers children, not just direct matches.
+        parent = FakeProc(1, info={"name": "app.exe", "exe": APP_EXE},
+                          username_val="DOMAIN\\user")
+        system_child = FakeProc(20, info={"name": "svc.exe", "exe": r"C:\App\svc.exe"},
+                                username_val="NT AUTHORITY\\SYSTEM")
+        parent._children = [system_child]
+        with patch.object(watchdog_app, "find_matching_processes", return_value=[parent]), \
+             patch.object(watchdog_app.psutil, "process_iter", return_value=[]):
+            result = watchdog_app.kill_processes([ENTRY])
+        self.assertEqual(result, 1)
+        self.assertEqual(parent.kill_calls, 1,
+                         "non-SYSTEM parent must be killed")
+        self.assertEqual(system_child.kill_calls, 0,
+                         "SYSTEM-owned recursive child must not be killed")
+
+    def test_access_denied_on_username_does_not_protect(self):
+        # Criterion 4: AccessDenied on username() does NOT make the process
+        # protected. It proceeds to the normal kill attempt, which may itself
+        # hit AccessDenied and be honestly skipped.
+        proc = FakeProc(30, info={"name": "app.exe", "exe": APP_EXE},
+                        username_exc=psutil.AccessDenied(30))
+        with patch.object(watchdog_app, "find_matching_processes", return_value=[proc]), \
+             patch.object(watchdog_app.psutil, "process_iter", return_value=[]):
+            result = watchdog_app.kill_processes([ENTRY])
+        # AccessDenied on username() means "cannot determine" -- NOT protected.
+        # The process reaches the kill loop, where proc.kill() is called
+        # normally. In this test kill() succeeds (no kill_exc set).
+        self.assertEqual(result, 1)
+        self.assertEqual(proc.kill_calls, 1,
+                         "AccessDenied on username() must not protect the process")
+
+    def test_normal_user_owned_process_is_killed(self):
+        # Criterion 5: a normal, non-SYSTEM-owned process is unaffected.
+        proc = FakeProc(40, info={"name": "app.exe", "exe": APP_EXE},
+                        username_val="DOMAIN\\jsmith")
+        with patch.object(watchdog_app, "find_matching_processes", return_value=[proc]), \
+             patch.object(watchdog_app.psutil, "process_iter", return_value=[]):
+            result = watchdog_app.kill_processes([ENTRY])
+        self.assertEqual(result, 1)
+        self.assertEqual(proc.kill_calls, 1,
+                         "normal user-owned process must be killed as before")
 
 
 if __name__ == "__main__":

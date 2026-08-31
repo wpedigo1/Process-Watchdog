@@ -84,7 +84,7 @@ Acceptance gate
 - Protected targets cannot be added through any UI path.
 - Tests cover migration and selection behavior.
 Mission 3 — Safe Feeding Engine
-Status: 🟨 Active (partial: feeding-engine self-exclusion closed by Mission 1C; same-directory-neighbor kill expansion removed by Mission 1D; meal-list watch/meal model + Train/Retrain + config migration closed by Mission 2; protected-executable/path + core-engine enforcement + offline Browse/manual rejection closed by Mission 3 — see notes under Permanent protection; picker-display self-hiding was also closed by Mission 2, not Mission 3: get_process_groups excludes pid == os.getpid(); the username-based SYSTEM/LOCAL/NETWORK SERVICE feeding filter is still open)
+Status: ✅ Verified (partial: feeding-engine self-exclusion closed by Mission 1C; same-directory-neighbor kill expansion removed by Mission 1D; meal-list watch/meal model + Train/Retrain + config migration closed by Mission 2; protected-executable/path + core-engine enforcement + offline Browse/manual rejection closed by Mission 3 — see notes under Permanent protection; picker-display self-hiding was also closed by Mission 2, not Mission 3: get_process_groups excludes pid == os.getpid(); username-based SYSTEM/LOCAL/NETWORK SERVICE feeding filter closed by Mission 3B — see docs/missions/3b-username-owner-exclusion.md)
 Depends on: Mission 2
 Trigger behavior
 - Preserve current Windows visible-window logic.
@@ -130,10 +130,11 @@ Permanent protection
   "never show ProcessWatchdog.exe" hiding was already closed by Mission 2
   (`get_process_groups` excludes `pid == os.getpid()`), not by Mission 3.
 - Exclude SYSTEM, LOCAL SERVICE, and NETWORK SERVICE processes.
-  [STILL OPEN in the feeding engine: is_protected_entry is identity-only
-  (name/path) and cannot evaluate the live-process username check that
-  is_system_process does; the username-based SYSTEM/LOCAL/NETWORK SERVICE
-  filter is not yet wired into kill_processes.]
+  [CLOSED by Mission 3B] _is_protected_owner calls proc.username() live at
+  the kill_processes merge point, reusing SYSTEM_USERNAMES. Covers both direct
+  matches and recursive children. AccessDenied on username() is NOT treated as
+  protected (honest skip, mirrors existing kill() handling). See
+  docs/missions/3b-username-owner-exclusion.md.
 - [CLOSED by Mission 3] Exclude protected Windows executables.
 - [CLOSED by Mission 3] Exclude executables under protected Windows system
   directories.

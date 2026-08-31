@@ -158,6 +158,17 @@ def is_protected_entry(entry):
     return False
 
 
+def _is_protected_owner(proc):
+    """True if the live process is owned by SYSTEM, LOCAL SERVICE, or NETWORK
+    SERVICE.  Requires a live psutil.Process, so it only runs at kill time,
+    covering both direct matches and recursive children uniformly."""
+    try:
+        username = (proc.username() or "").upper()
+    except (psutil.NoSuchProcess, psutil.AccessDenied):
+        return False
+    return any(sysname in username for sysname in SYSTEM_USERNAMES)
+
+
 # ---------------------------------------------------------------------------
 # Watched-app / meal-target model
 # ---------------------------------------------------------------------------
@@ -361,6 +372,7 @@ def kill_processes(entries):
         if not _is_self(proc)
         and not is_protected_entry({"name": proc.info.get("name", ""),
                                     "exe": proc.info.get("exe", "")})
+        and not _is_protected_owner(proc)
     }
 
     killed = 0
