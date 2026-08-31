@@ -304,50 +304,62 @@ Trainer’s Guide
 - Keep instructions concise and accurate. [CLOSED by Mission 6A]
 - End manual or timed closure with the bite animation. [CLOSED — already true; wiring verified pre-existing]
 Final verification
-- Run the complete automated test suite. [DONE by Mission 6B — 87/87 PASS]
-- Run syntax and import validation. [PASS by Mission 6B — ast.parse + import OK, source-level 87 test methods verified]
-- Verify copied real configuration migration. [UNVERIFIED by Mission 6B — app crashes on startup, cannot run; see docs/missions/6b-final-release-qa.md]
-- Confirm the live configuration remains unchanged during testing. [PASS by Mission 6B — never read for content or modified]
-- Verify Add, Retrain, toggle, Rehome, and grace-period behavior. [UNVERIFIED — blocked by startup defect]
-- Verify unrelated selected leftovers are eaten in a controlled test. [UNVERIFIED — blocked by startup defect]
-- Verify unselected same-folder processes survive. [UNVERIFIED — blocked by startup defect]
-- Verify protected processes and Process Watchdog never appear. [UNVERIFIED — blocked by startup defect]
-- Verify main X hides without exiting. [UNVERIFIED — blocked by startup defect]
-- Verify doghouse button hides without exiting. [UNVERIFIED — blocked by startup defect]
-- Verify tray Quit exits. [UNVERIFIED — blocked by startup defect]
-- Verify Start with Windows behavior. [UNVERIFIED — blocked by startup defect]
-- Verify light and dark themes. [UNVERIFIED — blocked by startup defect]
-- Verify theme refresh after leaving the doghouse. [UNVERIFIED — blocked by startup defect]
-- Verify logo visibility in all required windows. [UNVERIFIED — blocked by startup defect]
-- Verify every bite-animation path. [UNVERIFIED — blocked by startup defect]
-- Build the one-file executable. [DONE by Mission 6B — build.bat completed, dist\ProcessWatchdog.exe produced]
-- Smoke-test the packaged executable. [FAILED by Mission 6B — exe crashed on launch with AttributeError; root cause FIXED by Mission 6C (app now starts from source, crash.log clean), but the packaged-exe smoke test itself has NOT been re-run — re-verify in the Mission 6B re-run]
-- Verify bundled icons and images. [UNVERIFIED — blocked by startup defect]
-- Compare final executable size against baseline. [PASS by Mission 6B — 31,528,998 bytes vs 32,548,945 ceiling]
-- Compare idle memory against baseline. [BLOCKED — app never reaches idle/running state, no measurement possible]
-- Compare CPU, threads, handles, and polling behavior. [BLOCKED — app never reaches idle/running state]
-- Confirm every hard resource limit passes. [PARTIAL — exe size PASS; memory/CPU/threads/handles cannot be measured due to startup defect]
-- Inspect the final diff for unrelated changes. [PASS by Mission 6B — clean working tree]
-- Commit only verified work. [PASS by Mission 6B — docs only; no source changed in this verification mission]
+- Run the complete automated test suite. [PASS by Mission 6D — 89/89 on the real Windows machine]
+- Run syntax and import validation. [PASS by Missions 6B/6C — ast.parse + import OK; 89 source-level test methods]
+- Verify copied real configuration migration. [PASS by Mission 6D — real legacy `rules` config migrated via copy; all 5 watchdogs and every identity preserved; real file hash-verified untouched]
+- Confirm the live configuration remains unchanged during testing. [PASS by Mission 6D — sha256 identical before/after the whole mission]
+- Verify Add, Retrain, toggle, Rehome, and grace-period behavior. [FAIL by Mission 6D — Add crashes (defect 2), Retrain-with-watched-app crashes and Retrain-ambiguous silently drops meal targets (defect 3); toggle PASS; Rehome PASS (exact dialog text, Keep/Rehome both verified); grace countdown PASS but the kill itself is broken (defect 4)]
+- Verify unrelated selected leftovers are eaten in a controlled test. [BLOCKED by Mission 6D — defect 4 kills the Watcher thread before any kill; leftover survived because nothing was killed]
+- Verify unselected same-folder processes survive. [UNVERIFIED at runtime by Mission 6D — vacuous pass only (defect 4 prevented any kill); scoping logic unit-covered]
+- Verify protected processes and Process Watchdog never appear. [PARTIAL by Mission 6D — own pid excluded (verified); Browse + name-only protected rejection verified with exact Mission 3 message; BUT defect 1: the packaged app's own parent ProcessWatchdog.exe IS listed in its picker (display-level violation; kill boundary still protected)]
+- Verify main X hides without exiting. [PASS by Mission 6D — real WM_DELETE_WINDOW path, animation, withdrawn, process alive]
+- Verify doghouse button hides without exiting. [PASS by Mission 6D — real button command, same checks]
+- Verify tray Quit exits. [UNVERIFIED — tray menu not scriptable from CLI; documented taskkill deviation used; not claimed]
+- Verify Start with Windows behavior. [PARTIAL by Mission 6D — real Run key contains the app's exact-format registration (user's own setting); read logic verified against the real key frozen-simulated; source-level non-frozen no-op guard verified; tray UI round-trip itself not scriptable; user setting deliberately untouched]
+- Verify light and dark themes. [PASS by Mission 6D — controlled registry flip: light at construction, dark rendered after; exe rendered dark while system dark; two independent light/dark launch observations]
+- Verify theme refresh after leaving the doghouse. [PASS by Mission 6D — hide→show re-detect: 49,636 dark-palette pixels post-show vs 2 before, root bg #202020, registry restored]
+- Verify logo visibility in all required windows. [PASS by Mission 6D — measured pixel analysis: rendered logo patches at exact positions in ConfigWindow, watchdogDialog, Trainer's Guide, and the packaged exe; screenshots saved as artifacts]
+- Verify every bite-animation path. [PASS by Mission 6D — main X x2, doghouse x2, guide Close, guide X, guide 30s timer; window shape restored (GetWindowRgn=0, 500x460) after every path; GDI counter inconclusive (read 0), region/no-broken-shape evidence is the substantive check]
+- Build the one-file executable. [DONE by Missions 6B and 6D — build.bat completed both times]
+- Smoke-test the packaged executable. [PASS by Mission 6D — exe launches, first-run window opens and renders (native child HWNDs, exact palette bg, logo), no crash, hidden-to-tray idle run measured; the 6B startup crash is confirmed fixed in the packaged build]
+- Verify bundled icons and images. [PASS by Mission 6D — window icon + logo verified in the packaged exe capture; tray icon not directly observed (not scriptable) — noted]
+- Compare final executable size against baseline. [PASS by Mission 6D — 31,528,986 bytes vs 32,548,945 ceiling (+28,617 vs baseline)]
+- Compare idle memory against baseline. [PASS by Mission 6D — child RSS 46,551,040-46,600,192 (below baseline's ~48.3 MB, well under the ~53.3 MB ceiling); parent 8.7 MB unchanged]
+- Compare CPU, threads, handles, and polling behavior. [PASS by Mission 6D — CPU min/median 0.00 both pids (one 1.60% max sample on the dormant bootloader parent, reported honestly); threads 4/9 exactly matches baseline (no new permanent threads); handles 100/524]
+- Confirm every hard resource limit passes. [PASS by Mission 6D — size, memory, threads all within limits; no new dependency (versions identical to baseline)]
+- Inspect the final diff for unrelated changes. [PASS by Mission 6D — clean working tree throughout; QA scripts/artifacts kept in temp]
+- Commit only verified work. [PASS by Missions 6B/6C/6D — docs and fixes only as scoped]
 Final acceptance gate
-- All requested behavior is present. [NOT MET — application cannot start]
-- All automated tests pass. [PASS — 89/89 observed in Mission 6C (87 prior + 2 new ConfigWindow instantiation tests)]
-- Packaged runtime checks pass. [FAIL — packaged exe crashes on launch]
-- Existing Watchdogs remain usable. [UNVERIFIED — app cannot run]
-- Destructive behavior stays inside the approved boundary. [N/A this mission — nothing was launched or killed; disposable-only rule held]
-- Dog terminology is consistent. [UNVERIFIED — cannot view UI]
-- Resource limits pass. [PARTIAL — exe size PASS; runtime resources unmeasurable]
+- All requested behavior is present. [NOT MET — defects 2, 3, 4 break Add, Retrain, and the feeding engine]
+- All automated tests pass. [PASS — 89/89]
+- Packaged runtime checks pass. [PARTIAL — launch/window/theme/animations/tray-hide PASS; feeding engine broken (defect 4)]
+- Existing Watchdogs remain usable. [PARTIAL — migration and display verified; Retrain can silently drop meal targets (defect 3)]
+- Destructive behavior stays inside the approved boundary. [PASS — disposable-only rule held; no real app touched; real config untouched; user Run setting untouched]
+- Dog terminology is consistent. [PASS — observed live in the driven UI: Call Dog Off Watch / Put Dog on Watch / Off watch. / Hungry — eating in Ns. / Rehome texts / Hide Dogs in the Doghouse / Trainer's Guide countdown title]
+- Resource limits pass. [PASS — all measured values within limits]
 - Repository is clean. [PASS]
-- Local and remote state are reported accurately. [PASS — commit/push verified in this mission]
-- [BLOCKER — FIXED by Mission 6C] Genuine startup defect found in Mission 6B:
-  ConfigWindow.__init__ → _tick_status → _update_toggle_label → self.toggle_btn
-  (AttributeError) crashed the app before toggle_btn existed. Mission 6C moved the
-  btn_row construction (through the toggle_btn.pack line) ahead of the
-  `if self.watcher: self._tick_status()` guard and added
-  tests/test_configwindow_init.py — real ConfigWindow+Watcher instantiation, the
-  exact coverage gap that let the defect through. App confirmed to start from
-  source (alive 12s, hidden to tray, crash.log unchanged). The Final acceptance
-  gate is still NOT met: Mission 6B's release QA must be RE-RUN from a fresh
-  build before any gate declaration. See docs/missions/6c-fix-startup-crash.md
-  and docs/missions/6b-final-release-qa.md.
+- Local and remote state are reported accurately. [PASS — commit/push verified per mission]
+- [BLOCKER — defect 4, found by Mission 6D] kill_processes' protection filter
+  (watchdog_core.py:388-394) reads proc.info on descendant processes from
+  proc.children(), which are plain psutil.Process objects without .info →
+  AttributeError → the Watcher thread dies → NO kill ever happens for any matched
+  process with descendants (every multi-process app). Core feature broken end-to-end.
+  The suite passes because test fakes give children .info. Needs a fix + regression
+  tests using REAL psutil process shapes.
+- [BLOCKER — defect 2, found by Mission 6D] watchdogDialog.__init__ crashes on
+  watchdog=None (watchdog_ui.py:300 uses watchdog.get before the `watchdog or {}`
+  normalization at :305; introduced by Mission 5 2e87354). The Add Watchdog button
+  silently does nothing in the windowed app.
+- [BLOCKER — defect 3, found by Mission 6D] ProcessPicker.set_locked passes invalid
+  disabled=True to ttk.Treeview.item (watchdog_ui.py:224; introduced by Mission 2
+  c36917b). Retrain-with-watched-app crashes; any watched-app selection empties the
+  meal list mid-refresh, and saving then silently drops existing meal targets
+  (observed data loss).
+- [DEFECT — defect 1, found by Mission 6D] get_process_groups lists the packaged
+  app's own parent ProcessWatchdog.exe (pid-only self-exclusion; processwatchdog.exe
+  not in PROTECTED_PROCESS_NAMES). Display-level "never show ProcessWatchdog.exe"
+  violation; kill boundary still protected. Low severity.
+- The Final acceptance gate is NOT met. Defects 4, 2, 3 (and 1) require focused
+  follow-up missions with real-shape regression tests, followed by another release-QA
+  re-run. See docs/missions/6d-final-release-qa-rerun.md for all observed evidence.
 This is the complete punch board and contains the approved product behavior, safety boundaries, visual direction, resource limits, migration requirements, and final verification gates.
