@@ -86,7 +86,7 @@ def load_logo_img(pixels):
     return ImageTk.PhotoImage(img)
 
 
-def animate_eaten(win, on_done, bites=7, bite_delay_ms=150):
+def animate_eaten(win, on_done, bites=5, bite_delay_ms=160):
     """Visually 'eats' a Tk window in ragged bites — like a dog chewing
     through it — using real Win32 window regions (not a fake shrink/fade),
     then calls on_done(). Purely cosmetic: any failure (non-Windows,
@@ -112,7 +112,7 @@ def animate_eaten(win, on_done, bites=7, bite_delay_ms=150):
                 return
             eaten_x = int(w * i / bites)
             region = _gdi32.CreateRectRgn(eaten_x, 0, w, h)
-            bite_r = max(10, h // 4)
+            bite_r = max(14, h // 3)
             for _ in range(3):
                 cy = random.randint(0, h)
                 bite = _gdi32.CreateEllipticRgn(eaten_x - bite_r, cy - bite_r, eaten_x + bite_r, cy + bite_r)
@@ -483,34 +483,54 @@ class UserGuideWindow(tk.Toplevel):
         "Built by Black Anvil\n"
         "\n"
         "WHAT THIS APP DOES\n"
-        "Process Watchdog was built to eat stupid background processes, "
-        "freeing up resources. It watches apps you pick and eats its "
-        "leftover background processes a few seconds after you close the "
-        "app itself — no more hunting down zombie processes by hand. "
-        "LET THE DOG EAT!!!\n"
+        "Process Watchdog is a hungry dog that eats leftover background "
+        "processes for you. You pick one app it keeps its eye on, plus any "
+        "helper processes that should go away when that app closes. LET THE "
+        "DOG EAT!!!\n"
         "\n"
-        "ADDING A WATCHDOG\n"
-        "Click Add Watchdog, give it a name, then select the process(es) "
-        "you want it to eat from the list (Ctrl/Shift-click to pick several, "
-        "or click a folder group to grab everything under it at once). "
-        "Click Save.\n"
+        "ONE WATCHED APP + THE MEAL LIST\n"
+        "Every Watchdog watches exactly one app, which is always on its own "
+        "meal list automatically — you cannot remove it. On top of that you "
+        "can add unlimited 'leftover' meal targets: pick a running process "
+        "from the list, browse to an offline .exe file, or just type a "
+        "filename. Add as many as you like.\n"
         "\n"
-        "GRACE PERIOD\n"
-        "After the app's window closes, Watchdog waits 10 seconds by "
-        "default before eating anything. This can be adjusted to feed "
-        "Watchdog as you like.\n"
+        "GRACE PERIOD (GLOBAL)\n"
+        "When the watched app's window closes, Watchdog waits a grace period "
+        "before eating anything, and cancels if the app reopens in time. "
+        "There is ONE grace-period setting for every Watchdog — default 10 "
+        "seconds, adjustable — not a separate setting per dog.\n"
         "\n"
-        "RETRAIN / TOGGLE WATCH / REHOME DOG\n"
-        "Select a Watchdog first, then use these buttons to change, pause, "
-        "or rehome it.\n"
+        "THE DOGHOUSE\n"
+        "Closing the window (the X, or Hide Dogs in the Doghouse) keeps "
+        "every Watchdog running in the background. Right-click the tray icon "
+        "to reopen, or use the tray Quit to actually exit and starve your "
+        "dogs. Only tray Quit truly stops them.\n"
         "\n"
-        "HIDE DOGS IN THE DOGHOUSE\n"
-        "Closes the window but keeps Watchdog running in the background. "
-        "Right-click the tray icon to reopen it, turn on Start with "
-        "Windows, or Quit for real and starve your Watchdog. Your Call!\n"
+        "CALL DOG OFF WATCH / PUT DOG ON WATCH\n"
+        "This toggle turns a single Watchdog on or off. Off means it stops "
+        "watching and never eats anything; on means it watches again. The "
+        "button flips between the two.\n"
+        "\n"
+        "RETRAIN / REHOME\n"
+        "Select a Watchdog first. Retrain lets you edit it (change the "
+        "watched app or its meal list, fix an ambiguous one). Rehome Dog "
+        "deletes it for good, after an on-screen confirmation. Each has its "
+        "own confirm text, so this guide won't recite it.\n"
+        "\n"
+        "EXACT MATCH VS. NAME MATCH\n"
+        "When the app's exact install location is known, Watchdog matches by "
+        "that path — so two different apps that share a filename are never "
+        "mixed up. When no path is known, name-only matching is the fallback, "
+        "and the picker clearly labels those entries as such.\n"
+        "\n"
+        "PROTECTED PROCESSES\n"
+        "Watchdog will never target itself, core Windows system processes, or "
+        "anything owned by SYSTEM or a service account — no matter what you "
+        "select. The safe ones stay safe.\n"
     )
 
-    COUNTDOWN_SECONDS = 15
+    COUNTDOWN_SECONDS = 30
 
     def __init__(self, master):
         super().__init__(master)

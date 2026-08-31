@@ -263,40 +263,46 @@ Acceptance gate
 - Resource budget remains intact. [CLOSED — no new dependency/thread; theme reads are once-per-window registry reads, not polled]
 - Controls do not clip at supported scaling. [inspection-pending]
 Mission 6 — Doghouse Animation, Trainer’s Guide, and Release QA
-Status: ⬜ Planned
+Status: 🟨 Active (content/timing half — bite-animation sizing/timing, guide timer rewrite —
+closed by Mission 6A; see docs/missions/6a-guide-timer-animation.md. The Final verification /
+release-QA half is a separate follow-up mission and remains OPEN below.)
 Depends on: Mission 5
 Bite animation
-- Keep the existing Win32 window-region technique.
-- Make missing chunks look like obvious dog bites.
-- Use larger, more visible bite shapes.
-- Complete the animation in approximately 0.8 seconds.
-- Keep the animation non-blocking.
-- Restore the full window region before the window is shown again.
-- Fall back safely to immediate hiding/destruction if animation fails.
-- Test repeatedly for leaked GDI regions or broken window shapes.
+- Keep the existing Win32 window-region technique. [CLOSED — unchanged]
+- Make missing chunks look like obvious dog bites. [CLOSED — unchanged technique, existing]
+- Use larger, more visible bite shapes. [CLOSED by Mission 6A — bite_r = max(14, h // 3)]
+- Complete the animation in approximately 0.8 seconds. [CLOSED by Mission 6A — bites=5,
+  bite_delay_ms=160 → 5 × 160 = 800 ms]
+- Keep the animation non-blocking. [CLOSED — unchanged, win.after scheduling retained]
+- Restore the full window region before the window is shown again. [CLOSED — already true;
+  SetWindowRgn(hwnd, None, True) verified pre-existing, untouched]
+- Fall back safely to immediate hiding/destruction if animation fails. [CLOSED — already true;
+  non-Windows/missing-API/exception fallback to on_done() verified pre-existing, untouched]
+- Test repeatedly for leaked GDI regions or broken window shapes. [NOT CLOSED — deferred to
+  release-QA mission]
 Apply animation to
-- Main-window X.
-- Hide Dogs in the Doghouse.
-- Trainer’s Guide close button.
-- Trainer’s Guide X.
-- Trainer’s Guide timer expiration.
-- Do not create extra animations for unrelated tray actions.
+- Main-window X. [CLOSED — already correctly wired through ConfigWindow.hide(), verified pre-existing]
+- Hide Dogs in the Doghouse. [CLOSED — already correctly wired through ConfigWindow.hide(), verified pre-existing]
+- Trainer’s Guide close button. [CLOSED — already correctly wired through UserGuideWindow._close_now, verified pre-existing]
+- Trainer’s Guide X. [CLOSED — already correctly wired through UserGuideWindow._close_now, verified pre-existing]
+- Trainer’s Guide timer expiration. [CLOSED — already correctly wired through _tick, verified pre-existing]
+- Do not create extra animations for unrelated tray actions. [CLOSED — no new wiring added]
 Trainer’s Guide
-- Rename it to Trainer’s Guide.
-- Change the timer from 15 seconds to 30 seconds.
-- Keep the visible countdown.
-- Rewrite the guide around the final Watch/Eat model.
-- Explain one watched application and unlimited meal targets.
-- Explain the automatic watched-app meal target.
-- Explain the global grace period.
-- Explain doghouse behavior.
-- Explain dynamic Watchdog toggling.
-- Explain Retrain and Rehome.
-- Explain exact-path matching and protected-process exclusions.
-- Use playful, mischievous dog humor.
-- Avoid corporate language, childish prose, and profanity.
-- Keep instructions concise and accurate.
-- End manual or timed closure with the bite animation.
+- Rename it to Trainer’s Guide. [CLOSED by Mission 4A]
+- Change the timer from 15 seconds to 30 seconds. [CLOSED by Mission 6A — COUNTDOWN_SECONDS = 30]
+- Keep the visible countdown. [CLOSED — unchanged, _tick retained]
+- Rewrite the guide around the final Watch/Eat model. [CLOSED by Mission 6A — GUIDE_TEXT rewritten]
+- Explain one watched application and unlimited meal targets. [CLOSED by Mission 6A — "ONE WATCHED APP + THE MEAL LIST"]
+- Explain the automatic watched-app meal target. [CLOSED by Mission 6A — "ONE WATCHED APP + THE MEAL LIST"]
+- Explain the global grace period. [CLOSED by Mission 6A — "GRACE PERIOD (GLOBAL)"]
+- Explain doghouse behavior. [CLOSED by Mission 6A — "THE DOGHOUSE"]
+- Explain dynamic Watchdog toggling. [CLOSED by Mission 6A — "CALL DOG OFF WATCH / PUT DOG ON WATCH"]
+- Explain Retrain and Rehome. [CLOSED by Mission 6A — "RETRAIN / REHOME"]
+- Explain exact-path matching and protected-process exclusions. [CLOSED by Mission 6A — "EXACT MATCH VS. NAME MATCH" and "PROTECTED PROCESSES"]
+- Use playful, mischievous dog humor. [CLOSED by Mission 6A]
+- Avoid corporate language, childish prose, and profanity. [CLOSED by Mission 6A]
+- Keep instructions concise and accurate. [CLOSED by Mission 6A]
+- End manual or timed closure with the bite animation. [CLOSED — already true; wiring verified pre-existing]
 Final verification
 - Run the complete automated test suite.
 - Run syntax and import validation.
