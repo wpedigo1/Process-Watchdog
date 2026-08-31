@@ -142,7 +142,7 @@ def main():
                 set_startup_registered(not is_startup_registered())
 
             menu = pystray.Menu(
-                pystray.MenuItem("Open Watchdog", open_config, default=True),
+                pystray.MenuItem("Open the Doghouse", open_config, default=True),
                 pystray.MenuItem("Start with Windows", toggle_startup,
                                   checked=lambda item: is_startup_registered()),
                 pystray.MenuItem("Quit", quit_app),

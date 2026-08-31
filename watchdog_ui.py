@@ -424,11 +424,11 @@ class UserGuideWindow(tk.Toplevel):
         "default before eating anything. This can be adjusted to feed "
         "Watchdog as you like.\n"
         "\n"
-        "EDIT / TOGGLE ENABLED / DELETE\n"
+        "RETRAIN / TOGGLE WATCH / REHOME DOG\n"
         "Select a Watchdog first, then use these buttons to change, pause, "
-        "or remove it.\n"
+        "or rehome it.\n"
         "\n"
-        "HIDE TO TRAY\n"
+        "HIDE DOGS IN THE DOGHOUSE\n"
         "Closes the window but keeps Watchdog running in the background. "
         "Right-click the tray icon to reopen it, turn on Start with "
         "Windows, or Quit for real and starve your Watchdog. Your Call!\n"
@@ -475,6 +475,42 @@ class UserGuideWindow(tk.Toplevel):
 # Main config window
 # ---------------------------------------------------------------------------
 
+class RehomeDialog(tk.Toplevel):
+    """Confirmation dialog for deleting a watchdog. Safe default: Keep Dog."""
+
+    def __init__(self, master, name):
+        super().__init__(master)
+        self.result = False
+        self.title("Rehome Dog")
+        self.geometry("360x180")
+        self.resizable(False, False)
+        apply_window_icon(self)
+
+        tk.Label(self, text=f'Rehome "{name}"?', font=("Segoe UI", 10, "bold"),
+                 wraplength=330, justify="left").pack(anchor="w", padx=12, pady=(12, 4))
+        tk.Label(self,
+                 text="This removes the Watchdog and its meal list.\n"
+                      "The dog cannot come back unless you train it again.",
+                 wraplength=330, justify="left").pack(anchor="w", padx=12)
+
+        btn_row = tk.Frame(self)
+        btn_row.pack(fill="x", padx=12, pady=12, side="bottom")
+        tk.Button(btn_row, text="Rehome Dog", command=self._confirm).pack(side="right")
+        tk.Button(btn_row, text="Keep Dog", command=self._cancel).pack(side="right", padx=(0, 6))
+
+        self.transient(master)
+        self.grab_set()
+        self.protocol("WM_DELETE_WINDOW", self._cancel)
+
+    def _confirm(self):
+        self.result = True
+        self.destroy()
+
+    def _cancel(self):
+        self.result = False
+        self.destroy()
+
+
 class ConfigWindow:
     def __init__(self, cfg, on_change, watcher=None):
         self.cfg = cfg
@@ -501,9 +537,9 @@ class ConfigWindow:
         tk.Label(self.root, text="Watchdogs", font=("Segoe UI", 12, "bold")).pack(anchor="w", padx=10, pady=(10, 0))
 
         self.tree = ttk.Treeview(self.root, columns=("name", "enabled", "status"), show="headings", height=10)
-        self.tree.heading("name", text="Watchdog")
-        self.tree.heading("enabled", text="Enabled")
-        self.tree.heading("status", text="Status")
+        self.tree.heading("name", text="Watchdogs")
+        self.tree.heading("enabled", text="Watching")
+        self.tree.heading("status", text="Dog Status")
         self.tree.column("name", width=180, anchor="w")
         self.tree.column("enabled", width=70, anchor="center")
         self.tree.column("status", width=220, anchor="w")
@@ -515,11 +551,15 @@ class ConfigWindow:
         btn_row = tk.Frame(self.root)
         btn_row.pack(fill="x", padx=10, pady=(0, 10))
         tk.Button(btn_row, text="Add Watchdog", command=self.add_watchdog).pack(side="left")
-        tk.Button(btn_row, text="Edit", command=self.edit_watchdog).pack(side="left", padx=6)
-        tk.Button(btn_row, text="Toggle Enabled", command=self.toggle_watchdog).pack(side="left")
-        tk.Button(btn_row, text="Delete", command=self.delete_watchdog).pack(side="left", padx=6)
-        tk.Button(btn_row, text="Hide to Tray", command=self.hide).pack(side="right")
-        tk.Button(btn_row, text="User Guide", command=self.open_guide).pack(side="right", padx=(0, 6))
+        tk.Button(btn_row, text="Retrain", command=self.edit_watchdog).pack(side="left", padx=6)
+        self.toggle_btn = tk.Button(btn_row, text="Put Dog on Watch", command=self.toggle_watchdog)
+        self.toggle_btn.pack(side="left")
+        tk.Button(btn_row, text="Rehome Dog", command=self.delete_watchdog).pack(side="left", padx=6)
+        tk.Button(btn_row, text="Hide Dogs in the Doghouse", command=self.hide).pack(side="right")
+        tk.Button(btn_row, text="Trainer's Guide", command=self.open_guide).pack(side="right", padx=(0, 6))
+
+        self.tree.bind("<<TreeviewSelect>>", lambda e: self._update_toggle_label())
+        self._update_toggle_label()
 
         self.refresh_tree()
 
@@ -539,7 +579,8 @@ class ConfigWindow:
             self.tree.insert("", tk.END, iid=watchdog["id"],
                               values=(watchdog.get("name", ""),
                                       "Yes" if watchdog.get("enabled", True) else "No",
-                                      "Watching" if watchdog.get("enabled", True) else "Disabled"))
+                                      "Watching" if watchdog.get("enabled", True) else "Off watch."))
+        self._update_toggle_label()
 
     def _tick_status(self):
         """Runs every second: updates the Status column with a live countdown
@@ -554,22 +595,30 @@ class ConfigWindow:
             if not self.tree.exists(rid):
                 continue
             if not watchdog.get("enabled", True):
-                status = "Disabled"
+                status = "Off watch."
             elif rid in pending:
-                status = f"Killing in {int(pending[rid]) + 1}s"
+                status = f"Hungry \u2014 eating in {int(pending[rid]) + 1}s."
             else:
                 open_names = opens.get(rid, [])
                 if open_names:
                     shown = ", ".join(open_names[:2])
                     extra = "" if len(open_names) <= 2 else f" +{len(open_names) - 2}"
-                    status = f"Open: {shown}{extra}"
+                    status = f"Waiting to eat: {shown}{extra}."
                 else:
-                    status = "Watching"
+                    status = "Waiting for app to open."
             vals = list(self.tree.item(rid, "values"))
             if len(vals) == 3 and vals[2] != status:
                 vals[2] = status
                 self.tree.item(rid, values=vals)
+        self._update_toggle_label()
         self.root.after(500, self._tick_status)
+
+    def _update_toggle_label(self):
+        watchdog = self._selected_watchdog()
+        if watchdog and watchdog.get("enabled", True):
+            self.toggle_btn.config(text="Call Dog Off Watch")
+        else:
+            self.toggle_btn.config(text="Put Dog on Watch")
 
     def _selected_watchdog(self):
         sel = self.tree.selection()
@@ -618,7 +667,9 @@ class ConfigWindow:
         watchdog = self._selected_watchdog()
         if not watchdog:
             return
-        if messagebox.askyesno(APP_NAME, f"Delete Watchdog '{watchdog['name']}'?"):
+        dlg = RehomeDialog(self.root, watchdog["name"])
+        self.root.wait_window(dlg)
+        if dlg.result:
             self.cfg["watchdogs"] = [r for r in self.cfg["watchdogs"] if r["id"] != watchdog["id"]]
             save_config(self.cfg)
             self.on_change(self.cfg)

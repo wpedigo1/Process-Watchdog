@@ -164,63 +164,63 @@ Acceptance gate
 - No feeding occurs without an open-to-closed transition.
 - Actual results distinguish eaten, absent, and failed targets.
 Mission 4 — Dog Language and Honest Status
-Status: ⬜ Planned
+Status: 🟨 Active (partial: Main controls, Rehome confirmation, Table, Tray menu rename, and the dog-language status states already supported by existing data (disabled/idle/grace/blocked-open) closed by Mission 4A — see docs/missions/4a-dog-language-labels.md; richer eaten/absent/failed Dog Status states requiring per-target tracking still open; Guide timer/rewrite deferred to Mission 6)
 Depends on: Mission 3
 Main controls
-- Keep Add Watchdog.
-- Rename Edit to Retrain.
-- Use dynamic Watchdog toggle labels.
-- Show Call Dog Off Watch when the selected Watchdog is watching.
-- Show Put Dog on Watch when it is not watching.
-- Never use Turn Off on a button.
-- Rename Delete to Rehome Dog.
-- Rename User Guide to Trainer’s Guide.
-- Rename Hide to Tray to Hide Dogs in the Doghouse.
+- Keep Add Watchdog. [CLOSED by Mission 4A]
+- Rename Edit to Retrain. [CLOSED by Mission 4A]
+- Use dynamic Watchdog toggle labels. [CLOSED by Mission 4A — <<TreeviewSelect>> binding + _update_toggle_label]
+- Show Call Dog Off Watch when the selected Watchdog is watching. [CLOSED by Mission 4A]
+- Show Put Dog on Watch when it is not watching. [CLOSED by Mission 4A]
+- Never use Turn Off on a button. [CLOSED by Mission 4A — grep-verified no "Turn Off" in code]
+- Rename Delete to Rehome Dog. [CLOSED by Mission 4A]
+- Rename User Guide to Trainer's Guide. [CLOSED by Mission 4A]
+- Rename Hide to Tray to Hide Dogs in the Doghouse. [CLOSED by Mission 4A]
 Rehome confirmation
-- Require confirmation before rehoming.
-- Show:
-  Rehome “Claude Watchdog”?
+- Require confirmation before rehoming. [CLOSED by Mission 4A]
+- Show: [CLOSED by Mission 4A — RehomeDialog with exact template text]
+  Rehome "{name}"?
   
   This removes the Watchdog and its meal list.
   The dog cannot come back unless you train it again.
-- Use Keep Dog and Rehome Dog actions.
-- Preserve the Watchdog if the user chooses Keep Dog.
+- Use Keep Dog and Rehome Dog actions. [CLOSED by Mission 4A]
+- Preserve the Watchdog if the user chooses Keep Dog. [CLOSED by Mission 4A]
 Table
-- Keep exactly three columns.
-- Rename Watchdog to Watchdogs.
-- Rename Enabled to Watching.
-- Rename Status to Dog Status.
-- Show Yes or No in Watching.
-- Do not add another permanent column.
+- Keep exactly three columns. [CLOSED by Mission 4A]
+- Rename Watchdog to Watchdogs. [CLOSED by Mission 4A]
+- Rename Enabled to Watching. [CLOSED by Mission 4A]
+- Rename Status to Dog Status. [CLOSED by Mission 4A]
+- Show Yes or No in Watching. [CLOSED by Mission 4A — unchanged]
+- Do not add another permanent column. [CLOSED by Mission 4A]
 Dog Status states
-- Before the watched app has been observed: Waiting for app to open.
-- While open: Waiting to eat: claude.exe.
-- During grace period: Hungry — eating in 7s.
-- After verified termination: Eaten by Claude Watchdog: Claude.exe, cowork-svc.exe.
-- When targets were already absent: Nothing left to eat.
-- On partial failure: identify what was eaten and what could not be eaten.
-- On access denial: Couldn’t eat: Access denied.
-- When disabled: use dog-language indicating the dog is off watch.
-- Never claim Eaten merely because a process is absent.
-- Summarize long lists with +N.
-- Make full target details available outside the compact table cell.
-- Keep the last feeding result visible until the watched application opens again.
-- Keep feeding results in memory only.
-- Reset feeding results when Process Watchdog restarts.
+- Before the watched app has been observed: Waiting for app to open. [CLOSED by Mission 4A — _tick_status idle string]
+- While open: Waiting to eat: claude.exe. [CLOSED by Mission 4A — _tick_status open-names string]
+- During grace period: Hungry — eating in 7s. [CLOSED by Mission 4A — _tick_status pending string]
+- When disabled: use dog-language indicating the dog is off watch. [CLOSED by Mission 4A — "Off watch."]
+- After verified termination: Eaten by Claude Watchdog: Claude.exe, cowork-svc.exe. [STILL OPEN — requires per-target tracking in Watcher.on_kill, separate follow-up mission]
+- When targets were already absent: Nothing left to eat. [STILL OPEN — same reason]
+- On partial failure: identify what was eaten and what could not be eaten. [STILL OPEN — same reason]
+- On access denial: Couldn't eat: Access denied. [STILL OPEN — same reason]
+- Never claim Eaten merely because a process is absent. [STILL OPEN — same reason]
+- Summarize long lists with +N. [CLOSED by Mission 4A — existing +N logic preserved, surrounding text updated]
+- Make full target details available outside the compact table cell. [STILL OPEN — requires per-target tracking]
+- Keep the last feeding result visible until the watched application opens again. [STILL OPEN — no kill result data to display yet]
+- Keep feeding results in memory only. [STILL OPEN — no kill result data to store yet]
+- Reset feeding results when Process Watchdog restarts. [STILL OPEN — same reason]
 Tray behavior
-- Keep an explicit tray Quit command.
-- Tray Quit fully exits Process Watchdog.
-- Keep startup-with-Windows control in the tray.
-- Use dog-language for opening the hidden window.
-- Main-window X never exits the application.
-- Doghouse button never exits the application.
-- Only tray Quit, Windows shutdown, or external termination ends the process.
+- Keep an explicit tray Quit command. [CLOSED — already true since before Mission 4A]
+- Tray Quit fully exits Process Watchdog. [CLOSED — already true]
+- Keep startup-with-Windows control in the tray. [CLOSED — already true]
+- Use dog-language for opening the hidden window. [CLOSED by Mission 4A — "Open the Doghouse"]
+- Main-window X never exits the application. [CLOSED — already true (WM_DELETE_WINDOW → hide)]
+- Doghouse button never exits the application. [CLOSED by Mission 4A — "Hide Dogs in the Doghouse" → hide]
+- Only tray Quit, Windows shutdown, or external termination ends the process. [CLOSED — already true]
 Acceptance gate
-- No user-facing Rule, Kill, Delete, Edit, User Guide, or Hide to Tray language remains.
-- No button says Turn Off.
-- Dynamic toggle labels match the selected Watchdog.
-- Status never claims an unverified feeding.
-- Tray Quit remains functional.
+- No user-facing Rule, Kill, Delete, Edit, User Guide, or Hide to Tray language remains. [CLOSED by Mission 4A — grep-verified]
+- No button says Turn Off. [CLOSED by Mission 4A — grep-verified]
+- Dynamic toggle labels match the selected Watchdog. [CLOSED by Mission 4A]
+- Status never claims an unverified feeding. [STILL OPEN — no kill-result display yet]
+- Tray Quit remains functional. [CLOSED — already true]
 Mission 5 — Lightweight System-Themed Interface
 Status: ⬜ Planned
 Depends on: Mission 4
