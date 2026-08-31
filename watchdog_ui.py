@@ -50,6 +50,10 @@ def apply_theme(widget, palette):
     widgets are recolored by type via config(bg/fg); ttk.Treeview is themed
     through ttk.Style (selection background = accent). Unknown widget types are
     left untouched. Safe to call at any time — just recolors in place."""
+    try:
+        widget.config(bg=palette["bg"])
+    except tk.TclError:
+        pass
     for child in widget.winfo_children():
         cls = child.__class__.__name__
         if cls == "Button":
