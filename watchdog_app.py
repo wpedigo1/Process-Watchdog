@@ -120,8 +120,11 @@ def main():
     is_first_run = not os.path.exists(CONFIG_PATH)
     cfg = load_config()
 
-    def on_kill(watchdog_name, count):
-        print(f"[watchdog] {watchdog_name}: killed {count} process(es)")
+    def on_kill(rid, watchdog_name, killed, failed):
+        # Fires on the watcher's background thread; marshal all UI-adjacent
+        # work through root.after onto the Tkinter thread.
+        config_window.root.after(0, config_window.record_kill_result,
+                                 rid, watchdog_name, killed, failed)
 
     watcher = Watcher(get_config=lambda: config_window.cfg, on_kill=on_kill)
     config_window = ConfigWindow(cfg, on_change=lambda c: None, watcher=watcher)

@@ -516,6 +516,7 @@ class ConfigWindow:
         self.cfg = cfg
         self.on_change = on_change
         self.watcher = watcher
+        self._last_result = {}  # watchdog_id -> {"name": str, "killed": [..], "failed": [..]}
         self.root = tk.Tk()
         self.root.title(APP_NAME)
         self.root.geometry("500x460")
@@ -559,6 +560,7 @@ class ConfigWindow:
         tk.Button(btn_row, text="Trainer's Guide", command=self.open_guide).pack(side="right", padx=(0, 6))
 
         self.tree.bind("<<TreeviewSelect>>", lambda e: self._update_toggle_label())
+        self.tree.bind("<Double-1>", lambda e: self._show_result_details())
         self._update_toggle_label()
 
         self.refresh_tree()
@@ -583,11 +585,11 @@ class ConfigWindow:
         self._update_toggle_label()
 
     def _tick_status(self):
-        """Runs every second: updates the Status column with a live countdown
-        for any watchdog whose trigger just closed, OR — if the watchdog hasn't
-        closed — exactly which process(es) are still keeping it open. That
-        second part matters: a watchdog that looks 'stuck' should tell you why
-        instead of just sitting there saying 'Watching' forever."""
+        """Runs every second: updates the Status column with a live state for
+        each watchdog. Precedence: disabled, then a pending kill countdown,
+        then currently-open (blocking), then a stored post-feed result, then
+        the pre-feeding default. A fresh open event retires the stored result
+        (the result stays visible until the watched app is observed open)."""
         pending = self.watcher.get_pending() if self.watcher else {}
         opens = self.watcher.get_open() if self.watcher else {}
         for watchdog in self.cfg["watchdogs"]:
@@ -601,9 +603,12 @@ class ConfigWindow:
             else:
                 open_names = opens.get(rid, [])
                 if open_names:
+                    self._last_result.pop(rid, None)
                     shown = ", ".join(open_names[:2])
                     extra = "" if len(open_names) <= 2 else f" +{len(open_names) - 2}"
                     status = f"Waiting to eat: {shown}{extra}."
+                elif rid in self._last_result:
+                    status = self._render_result(self._last_result[rid])
                 else:
                     status = "Waiting for app to open."
             vals = list(self.tree.item(rid, "values"))
@@ -612,6 +617,58 @@ class ConfigWindow:
                 self.tree.item(rid, values=vals)
         self._update_toggle_label()
         self.root.after(500, self._tick_status)
+
+    @staticmethod
+    def _truncate_names(names):
+        shown = ", ".join(names[:2])
+        extra = "" if len(names) <= 2 else f" +{len(names) - 2}"
+        return f"{shown}{extra}"
+
+    @classmethod
+    def _render_result(cls, result):
+        """Render a stored feed result into a Dog Status string. result is a
+        dict with keys name/killed/failed."""
+        killed = result.get("killed", [])
+        failed = result.get("failed", [])
+        name = result.get("name", "watchdog")
+        if killed and not failed:
+            return f"Eaten by {name}: {cls._truncate_names(killed)}."
+        if not killed and failed:
+            return f"Couldn't eat: {cls._truncate_names(failed)} (access denied)."
+        if killed and failed:
+            return (f"Eaten by {name}: {cls._truncate_names(killed)}. "
+                    f"Couldn't eat: {cls._truncate_names(failed)} (access denied).")
+        return "Nothing left to eat."
+
+    def record_kill_result(self, rid, watchdog_name, killed, failed):
+        """Store the latest feeding outcome for a watchdog (called from the
+        Tkinter thread via root.after marshal from main). In-memory only."""
+        self._last_result[rid] = {
+            "name": watchdog_name,
+            "killed": list(killed),
+            "failed": list(failed),
+        }
+
+    def _show_result_details(self):
+        watchdog = self._selected_watchdog()
+        if not watchdog:
+            return
+        rid = watchdog["id"]
+        result = self._last_result.get(rid)
+        if not result:
+            return
+        killed = result.get("killed", [])
+        failed = result.get("failed", [])
+        lines = []
+        if killed:
+            lines.append(f"Eaten by {result.get('name', 'watchdog')}:")
+            lines.extend(f"  {n}" for n in killed)
+        if failed:
+            lines.append(f"Couldn't eat (access denied):")
+            lines.extend(f"  {n}" for n in failed)
+        if not lines:
+            lines.append("Nothing left to eat.")
+        messagebox.showinfo(APP_NAME, "\n".join(lines))
 
     def _update_toggle_label(self):
         watchdog = self._selected_watchdog()

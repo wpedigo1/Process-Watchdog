@@ -47,7 +47,8 @@ class WatcherLoopTests(unittest.TestCase):
             return state["t"]
 
         with patch.object(watchdog_app, "open_trigger_names", side_effect=fake_open), \
-             patch.object(watchdog_app, "kill_processes", return_value=1) as mock_kill, \
+             patch.object(watchdog_app, "kill_processes",
+                          return_value=watchdog_app.KillResult([], [])) as mock_kill, \
              patch.object(watchdog_app.time, "sleep", side_effect=fake_sleep), \
              patch.object(watchdog_app.time, "time", side_effect=fake_time):
             watcher.run()
@@ -61,7 +62,55 @@ class WatcherLoopTests(unittest.TestCase):
         watcher, mock_kill = self._drive(
             [["app.exe"], [], [], []], max_iter=4
         )
-        mock_kill.assert_called_once_with([{"name": "app.exe", "exe": ""}])
+        mock_kill.assert_called_once_with([{"name": "app.exe", "exe": ""}], detail=True)
+
+    def test_kill_called_with_detail_true(self):
+        # Criterion 6: Watcher.run calls kill_processes with detail=True.
+        watcher, mock_kill = self._drive(
+            [["app.exe"], [], [], []], max_iter=4
+        )
+        mock_kill.assert_called_once()
+        _args, kwargs = mock_kill.call_args
+        self.assertTrue(kwargs.get("detail", False))
+
+    def test_on_kill_fires_even_with_nothing_found(self):
+        # Criterion 6: on_kill fires even when nothing was found to eat (zero
+        # results), not just on a nonzero count. kill_processes returns an
+        # empty KillResult here.
+        watchdog = _make_watchdog()
+        cfg = {"poll_interval": 1.0, "grace_seconds": 10.0, "watchdogs": [watchdog]}
+        watcher = watchdog_app.Watcher(get_config=lambda: cfg)
+        calls = []
+        watcher.on_kill = lambda rid, name, killed, failed: calls.append((rid, name, killed, failed))
+        state = {"iter": 0, "t": 1000.0}
+
+        def fake_open(trigger):
+            script = [["app.exe"], [], []]
+            return script[min(state["iter"], 2)]
+
+        def fake_sleep(_secs):
+            state["iter"] += 1
+            state["t"] += 15.0
+            if state["iter"] >= 3:
+                watcher.stop()
+
+        def fake_time():
+            return state["t"]
+
+        with patch.object(watchdog_app, "open_trigger_names", side_effect=fake_open), \
+             patch.object(watchdog_app, "kill_processes",
+                          return_value=watchdog_app.KillResult([], [])) as mock_kill, \
+             patch.object(watchdog_app.time, "sleep", side_effect=fake_sleep), \
+             patch.object(watchdog_app.time, "time", side_effect=fake_time):
+            watcher.run()
+        mock_kill.assert_called_once()
+        # on_kill fired even though nothing was killed / failed
+        self.assertEqual(len(calls), 1)
+        rid, name, killed, failed = calls[0]
+        self.assertEqual(rid, "wd1")
+        self.assertEqual(name, "WD")
+        self.assertEqual(killed, [])
+        self.assertEqual(failed, [])
 
     def test_reopen_before_grace_cancels_kill(self):
         watcher, mock_kill = self._drive(

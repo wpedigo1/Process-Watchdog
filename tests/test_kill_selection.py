@@ -248,6 +248,69 @@ class KillSelectionTests(unittest.TestCase):
         self.assertEqual(proc.kill_calls, 1,
                          "normal user-owned process must be killed as before")
 
+    # --- Mission 4B: detail=True feeding results ---
+
+    def test_detail_false_returns_int_unchanged(self):
+        # Criterion 1: default call with no detail arg returns an int, exactly
+        # as before this mission.
+        fake = FakeProc(1, info={"name": "app.exe", "exe": APP_EXE})
+        with patch.object(watchdog_app, "find_matching_processes", return_value=[fake]), \
+             patch.object(watchdog_app.psutil, "process_iter", return_value=[]):
+            result = watchdog_app.kill_processes([ENTRY])
+        self.assertIsInstance(result, int)
+        self.assertEqual(result, 1)
+
+    def test_detail_true_successful_kill_lists_killed(self):
+        # Criterion 2: detail=True with a successful kill -> .killed has name,
+        # .failed empty.
+        fake = FakeProc(1, info={"name": "app.exe", "exe": APP_EXE})
+        with patch.object(watchdog_app, "find_matching_processes", return_value=[fake]), \
+             patch.object(watchdog_app.psutil, "process_iter", return_value=[]):
+            result = watchdog_app.kill_processes([ENTRY], detail=True)
+        self.assertEqual(result.killed, ["app.exe"])
+        self.assertEqual(result.failed, [])
+
+    def test_detail_true_access_denied_lists_failed(self):
+        # Criterion 3: detail=True with AccessDenied on .kill() -> .failed has
+        # the name, .killed does not.
+        fake = FakeProc(1, info={"name": "app.exe", "exe": APP_EXE},
+                        kill_exc=psutil.AccessDenied(1))
+        with patch.object(watchdog_app, "find_matching_processes", return_value=[fake]), \
+             patch.object(watchdog_app.psutil, "process_iter", return_value=[]):
+            result = watchdog_app.kill_processes([ENTRY], detail=True)
+        self.assertEqual(result.killed, [])
+        self.assertEqual(result.failed, ["app.exe"])
+
+    def test_detail_true_no_match_both_empty(self):
+        # Criterion 4: nothing matched at all -> both killed and failed empty.
+        with patch.object(watchdog_app, "find_matching_processes", return_value=[]), \
+             patch.object(watchdog_app.psutil, "process_iter", return_value=[]):
+            result = watchdog_app.kill_processes([ENTRY], detail=True)
+        self.assertEqual(result.killed, [])
+        self.assertEqual(result.failed, [])
+
+    def test_detail_true_protected_identity_invisible(self):
+        # Criterion 5: a protected/self identity filtered by existing checks
+        # does NOT appear in either killed or failed with detail=True.
+        sys_proc = FakeProc(777, info={"pid": 777, "name": "svc.exe",
+                                        "exe": r"C:\Windows\System32\svc.exe"})
+        with patch.object(watchdog_app, "find_matching_processes", return_value=[sys_proc]), \
+             patch.object(watchdog_app.psutil, "process_iter", return_value=[]):
+            result = watchdog_app.kill_processes([ENTRY], detail=True)
+        self.assertEqual(result.killed, [])
+        self.assertEqual(result.failed, [],
+                         "protected identity must not be reported as failed")
+
+    def test_detail_true_dedupes_and_sorts_names(self):
+        # Same process reached by both direct match and child is deduped in
+        # killed; names are sorted case-insensitively.
+        child = FakeProc(2, info={"name": "zchild.exe", "exe": r"C:\App\zchild.exe"})
+        fake = FakeProc(1, info={"name": "app.exe", "exe": APP_EXE}, children=[child])
+        with patch.object(watchdog_app, "find_matching_processes", return_value=[fake, child]), \
+             patch.object(watchdog_app.psutil, "process_iter", return_value=[]):
+            result = watchdog_app.kill_processes([ENTRY], detail=True)
+        self.assertEqual(result.killed, ["app.exe", "zchild.exe"])
+
 
 if __name__ == "__main__":
     unittest.main()

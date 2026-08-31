@@ -164,7 +164,7 @@ Acceptance gate
 - No feeding occurs without an open-to-closed transition.
 - Actual results distinguish eaten, absent, and failed targets.
 Mission 4 — Dog Language and Honest Status
-Status: 🟨 Active (partial: Main controls, Rehome confirmation, Table, Tray menu rename, and the dog-language status states already supported by existing data (disabled/idle/grace/blocked-open) closed by Mission 4A — see docs/missions/4a-dog-language-labels.md; richer eaten/absent/failed Dog Status states requiring per-target tracking still open; Guide timer/rewrite deferred to Mission 6)
+Status: ✅ Verified (Main controls, Rehome confirmation, Table, Tray rename, and ALL Dog Status states — including eaten/absent/partial-failure/access-denied — closed by Mission 4A + Mission 4B; see docs/missions/4a-dog-language-labels.md and docs/missions/4b-feeding-results.md. Guide timer/rewrite deferred to Mission 6.)
 Depends on: Mission 3
 Main controls
 - Keep Add Watchdog. [CLOSED by Mission 4A]
@@ -197,16 +197,16 @@ Dog Status states
 - While open: Waiting to eat: claude.exe. [CLOSED by Mission 4A — _tick_status open-names string]
 - During grace period: Hungry — eating in 7s. [CLOSED by Mission 4A — _tick_status pending string]
 - When disabled: use dog-language indicating the dog is off watch. [CLOSED by Mission 4A — "Off watch."]
-- After verified termination: Eaten by Claude Watchdog: Claude.exe, cowork-svc.exe. [STILL OPEN — requires per-target tracking in Watcher.on_kill, separate follow-up mission]
-- When targets were already absent: Nothing left to eat. [STILL OPEN — same reason]
-- On partial failure: identify what was eaten and what could not be eaten. [STILL OPEN — same reason]
-- On access denial: Couldn't eat: Access denied. [STILL OPEN — same reason]
-- Never claim Eaten merely because a process is absent. [STILL OPEN — same reason]
+- After verified termination: Eaten by Claude Watchdog: Claude.exe, cowork-svc.exe. [CLOSED by Mission 4B — _render_result from real kill detail]
+- When targets were already absent: Nothing left to eat. [CLOSED by Mission 4B — zero kill detail reported]
+- On partial failure: identify what was eaten and what could not be eaten. [CLOSED by Mission 4B — combined killed+failed render]
+- On access denial: Couldn't eat: Access denied. [CLOSED by Mission 4B — failed list render]
+- Never claim Eaten merely because a process is absent. [CLOSED by Mission 4B — only actually-killed names reported]
 - Summarize long lists with +N. [CLOSED by Mission 4A — existing +N logic preserved, surrounding text updated]
-- Make full target details available outside the compact table cell. [STILL OPEN — requires per-target tracking]
-- Keep the last feeding result visible until the watched application opens again. [STILL OPEN — no kill result data to display yet]
-- Keep feeding results in memory only. [STILL OPEN — no kill result data to store yet]
-- Reset feeding results when Process Watchdog restarts. [STILL OPEN — same reason]
+- Make full target details available outside the compact table cell. [CLOSED by Mission 4B — double-click row opens details popup]
+- Keep the last feeding result visible until the watched application opens again. [CLOSED by Mission 4B — _last_result retired on fresh open]
+- Keep feeding results in memory only. [CLOSED by Mission 4B — plain instance dict, never persisted]
+- Reset feeding results when Process Watchdog restarts. [CLOSED by Mission 4B — instance attribute, reset on new ConfigWindow]
 Tray behavior
 - Keep an explicit tray Quit command. [CLOSED — already true since before Mission 4A]
 - Tray Quit fully exits Process Watchdog. [CLOSED — already true]
@@ -219,7 +219,7 @@ Acceptance gate
 - No user-facing Rule, Kill, Delete, Edit, User Guide, or Hide to Tray language remains. [CLOSED by Mission 4A — grep-verified]
 - No button says Turn Off. [CLOSED by Mission 4A — grep-verified]
 - Dynamic toggle labels match the selected Watchdog. [CLOSED by Mission 4A]
-- Status never claims an unverified feeding. [STILL OPEN — no kill-result display yet]
+- Status never claims an unverified feeding. [CLOSED by Mission 4B — status renders only from real kill detail]
 - Tray Quit remains functional. [CLOSED — already true]
 Mission 5 — Lightweight System-Themed Interface
 Status: ⬜ Planned

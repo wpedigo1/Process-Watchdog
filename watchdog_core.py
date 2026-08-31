@@ -345,10 +345,29 @@ def open_trigger_names(entries):
     return sorted(names, key=str.lower)
 
 
-def kill_processes(entries):
+class KillResult:
+    """Outcome of a kill_processes call when detail=True. killed/failed are
+    sorted, deduplicated lists of process names."""
+    __slots__ = ("killed", "failed")
+
+    def __init__(self, killed, failed):
+        self.killed = killed
+        self.failed = failed
+
+
+def kill_processes(entries, detail=False):
     """Force-kill every running process matching the given identity entries,
     plus every descendant in its process tree (spawned child/helper processes).
-    Returns count killed."""
+
+    By default (detail=False) returns the count killed — an int, exactly as
+    before. With detail=True, additionally tracks per-name outcomes and
+    returns a KillResult exposing .killed and .failed:
+    - killed: names of processes actually terminated successfully;
+    - failed: names of processes that reached the kill attempt (not filtered
+      out by _is_self/is_protected_entry/_is_protected_owner) but raised
+      AccessDenied on .kill(). NoSuchProcess is silently not counted, exactly
+      as before. Processes excluded by the protection filters are invisible to
+      this reporting too — they were never a real kill attempt."""
     matched = find_matching_processes(entries)
 
     to_kill = {}
@@ -376,13 +395,36 @@ def kill_processes(entries):
     }
 
     killed = 0
+    killed_names = []
+    failed_names = []
     for proc in to_kill.values():
+        name = proc.info.get("name")
         try:
             proc.kill()
             killed += 1
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            if name:
+                killed_names.append(name)
+        except psutil.AccessDenied:
+            if name:
+                failed_names.append(name)
             continue
-    return killed
+        except psutil.NoSuchProcess:
+            continue
+
+    if not detail:
+        return killed
+
+    def _dedupe(names):
+        seen = set()
+        out = []
+        for n in names:
+            if not n or n in seen:
+                continue
+            seen.add(n)
+            out.append(n)
+        return sorted(out, key=str.lower)
+
+    return KillResult(_dedupe(killed_names), _dedupe(failed_names))
 
 
 # ---------------------------------------------------------------------------
@@ -433,9 +475,13 @@ class Watcher(threading.Thread):
                 pending_at = self._pending_kill_at.get(rid)
                 if pending_at and now >= pending_at:
                     self._pending_kill_at.pop(rid, None)
-                    count = kill_processes(kill_list)
-                    if count and self.on_kill:
-                        self.on_kill(watchdog.get("name", "watchdog"), count)
+                    result = kill_processes(kill_list, detail=True)
+                    if self.on_kill:
+                        # Report every grace-elapse outcome, including the
+                        # "nothing to eat" case, so the UI can show an honest
+                        # per-target result either way.
+                        self.on_kill(rid, watchdog.get("name", "watchdog"),
+                                     result.killed, result.failed)
 
             time.sleep(float(cfg.get("poll_interval", 2.0)))
 
