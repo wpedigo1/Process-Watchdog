@@ -19,6 +19,7 @@ from watchdog_core import (
     _gdi32,
     apply_window_icon,
     get_process_groups,
+    is_protected_entry,
     save_config,
 )
 
@@ -130,7 +131,13 @@ class ProcessPicker(tk.Frame):
         if not name:
             return
         self._manual.add((name, exe))
-        self._preselect.add((name, exe))
+        if self.tree["selectmode"] == "browse":
+            # Single-select picker: a manually added entry replaces the
+            # current selection rather than append to it.
+            self.tree.selection_remove(*self.tree.selection())
+            self._preselect = {(name, exe)}
+        else:
+            self._preselect.add((name, exe))
         self.refresh()
 
     def _current_identities(self):
@@ -251,6 +258,17 @@ class watchdogDialog(tk.Toplevel):
         )
         self.watch_picker.pack(fill="x", padx=8, pady=(4, 0))
 
+        watch_add_row = tk.Frame(self)
+        watch_add_row.pack(fill="x", padx=8, pady=(4, 0))
+        tk.Button(watch_add_row, text="Browse for .exe\u2026",
+                  command=self._browse_watch_exe).pack(side="left")
+        self.watch_manual_var = tk.StringVar()
+        watch_manual_entry = tk.Entry(watch_add_row, textvariable=self.watch_manual_var)
+        watch_manual_entry.pack(side="left", fill="x", expand=True, padx=(6, 0))
+        watch_manual_entry.bind("<Return>", lambda e: self._add_watch_manual())
+        tk.Button(watch_add_row, text="Add filename",
+                  command=self._add_watch_manual).pack(side="left", padx=(6, 0))
+
         # --- Eat These Leftovers (multi-select, locked watched app) ---
         tk.Label(self, text="Eat these leftovers", font=("Segoe UI", 10, "bold")).pack(
             anchor="w", padx=8, pady=(8, 0))
@@ -311,20 +329,49 @@ class watchdogDialog(tk.Toplevel):
             out.append(e)
         return out
 
+    def _guard_protected(self, name, exe):
+        if is_protected_entry({"name": name, "exe": exe}):
+            messagebox.showerror(
+                APP_NAME,
+                f"'{name}' is Process Watchdog itself or a protected system "
+                "process. It cannot be added as a target.",
+            )
+            return True
+        return False
+
     def _browse_exe(self):
         path = filedialog.askopenfilename(
             parent=self, title="Choose an executable to add to leftovers",
             filetypes=[("Executable files", "*.exe"), ("All files", "*.*")],
         )
-        if path:
+        if path and not self._guard_protected(os.path.basename(path), path):
             self.meal_picker.add_manual(os.path.basename(path), path)
 
     def _add_manual(self):
         name = self.manual_var.get().strip()
         if not name:
             return
-        self.meal_picker.add_manual(name, "")
+        if not self._guard_protected(name, ""):
+            self.meal_picker.add_manual(name, "")
         self.manual_var.set("")
+
+    def _browse_watch_exe(self):
+        path = filedialog.askopenfilename(
+            parent=self, title="Choose an executable to watch",
+            filetypes=[("Executable files", "*.exe"), ("All files", "*.*")],
+        )
+        if path and not self._guard_protected(os.path.basename(path), path):
+            self.watch_picker.add_manual(os.path.basename(path), path)
+            self._watch_changed()
+
+    def _add_watch_manual(self):
+        name = self.watch_manual_var.get().strip()
+        if not name:
+            return
+        if not self._guard_protected(name, ""):
+            self.watch_picker.add_manual(name, "")
+            self._watch_changed()
+        self.watch_manual_var.set("")
 
     def _save(self):
         name = self.name_entry.get().strip()

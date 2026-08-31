@@ -147,5 +147,20 @@ class KillSelectionTests(unittest.TestCase):
                          "self reached as a recursive child must never receive kill()")
 
 
+    def test_protected_system_identity_is_never_killed(self):
+        # A matched entry whose live resolution is a protected core OS
+        # identity (here a system32 path, explicitly NOT self) must never be
+        # killed. The _is_self check alone would not catch this identity —
+        # the is_protected_entry filter closes that defense-in-depth gap.
+        sys_proc = FakeProc(777, info={"pid": 777, "name": "something.exe",
+                                       "exe": r"C:\Windows\System32\something.exe"})
+        with patch.object(watchdog_app, "find_matching_processes", return_value=[sys_proc]), \
+             patch.object(watchdog_app.psutil, "process_iter", return_value=[]):
+            result = watchdog_app.kill_processes([ENTRY])
+        self.assertEqual(result, 0)
+        self.assertEqual(sys_proc.kill_calls, 0,
+                         "protected system identity must never receive kill()")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -84,7 +84,7 @@ Acceptance gate
 - Protected targets cannot be added through any UI path.
 - Tests cover migration and selection behavior.
 Mission 3 — Safe Feeding Engine
-Status: 🟨 Active (partial: feeding-engine self-exclusion closed by Mission 1C; same-directory-neighbor kill expansion removed by Mission 1D; meal-list watch/meal model + Train/Retrain + config migration closed by Mission 2 — see notes under Target behavior / Permanent protection; SYSTEM/protected/UI-wide protection still open)
+Status: 🟨 Active (partial: feeding-engine self-exclusion closed by Mission 1C; same-directory-neighbor kill expansion removed by Mission 1D; meal-list watch/meal model + Train/Retrain + config migration closed by Mission 2; protected-executable/path + core-engine enforcement + offline Browse/manual rejection closed by Mission 3 — see notes under Permanent protection; picker-display "never show ProcessWatchdog.exe" and the username-based SYSTEM/LOCAL/NETWORK SERVICE feeding filter are still open)
 Depends on: Mission 2
 Trigger behavior
 - Preserve current Windows visible-window logic.
@@ -119,16 +119,31 @@ Permanent protection
 - [CLOSED for the feeding engine by Mission 1C] kill_processes excludes
   Process Watchdog's own process (by pid == os.getpid() OR exe ==
   sys.executable, normalized) at the single merge point where all kill
-  sources (direct match, descendants) converge. This governs the feeding
-  engine only; the picker/filter/UI-wide
-  "never show or target ProcessWatchdog.exe" enforcement, and the
-  SYSTEM/protected-process/protected-path exclusions, remain open.
+  sources (direct match, descendants) converge.
+- [CLOSED by Mission 3] Protected/self rejection now lives in the core
+  engine (`is_protected_entry`, identity-only) and is enforced at the same
+  single merge point in kill_processes alongside the Mission 1C self check;
+  it also rejects self by name-only and by protected name/path. Offline
+  Browse/manual entry in both sections (Watch This App and Eat These
+  Leftovers) is rejected before adding. See
+  docs/missions/3-protected-target-enforcement.md. The picker/filter
+  display-level "never show ProcessWatchdog.exe" hiding remains open.
 - Exclude SYSTEM, LOCAL SERVICE, and NETWORK SERVICE processes.
-- Exclude protected Windows executables.
-- Exclude executables under protected Windows system directories.
-- Apply protection to the picker, filter, browsing, manual entry, migration, and feeding engine.
+  [STILL OPEN in the feeding engine: is_protected_entry is identity-only
+  (name/path) and cannot evaluate the live-process username check that
+  is_system_process does; the username-based SYSTEM/LOCAL/NETWORK SERVICE
+  filter is not yet wired into kill_processes.]
+- [CLOSED by Mission 3] Exclude protected Windows executables.
+- [CLOSED by Mission 3] Exclude executables under protected Windows system
+  directories.
+- [CLOSED by Mission 3 for browsing, manual entry, and the feeding engine]
+  Apply protection to the picker, filter, browsing, manual entry, migration,
+  and feeding engine. Migration is deliberately not rewritten (enforcement
+  lives in the core engine; see Mission 3 doc). Picker/filter display-level
+  hiding of ProcessWatchdog.exe remains open.
 - Keep normal user applications under Program Files available.
-- Enforce protection inside the core engine, not only in the UI.
+- [CLOSED by Mission 3] Enforce protection inside the core engine, not only
+  in the UI.
 Safe testing
 - Unit-test target selection without terminating real applications.
 - Test unrelated selected targets.

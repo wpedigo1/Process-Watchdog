@@ -25,6 +25,11 @@ APP_VERSION = "2026-08-23-pathfix1"
 CONFIG_PATH = os.path.join(os.path.expanduser("~"), ".process_watchdog", "config.json")
 SYSTEM_USERNAMES = ("SYSTEM", "LOCAL SERVICE", "NETWORK SERVICE")
 SYSTEM_PATH_HINTS = ("\\windows\\", "\\windows\\system32", "\\windows\\syswow64")
+PROTECTED_PROCESS_NAMES = (
+    "system", "registry", "idle", "svchost.exe", "wininit.exe", "csrss.exe",
+    "smss.exe", "lsass.exe", "services.exe", "dwm.exe", "fontdrvhost.exe",
+    "winlogon.exe",
+)
 
 DEFAULT_CONFIG = {
     "poll_interval": 2.0,
@@ -92,9 +97,7 @@ def is_system_process(proc):
         for hint in SYSTEM_PATH_HINTS:
             if hint in exe:
                 return True
-        if name in ("system", "registry", "idle", "svchost.exe", "wininit.exe",
-                    "csrss.exe", "smss.exe", "lsass.exe", "services.exe",
-                    "dwm.exe", "fontdrvhost.exe", "winlogon.exe"):
+        if name in PROTECTED_PROCESS_NAMES:
             return True
     except Exception:
         pass
@@ -132,6 +135,25 @@ def _is_self(proc):
     if proc.pid == os.getpid():
         return True
     if _norm_path(proc.info.get("exe")) == _norm_path(sys.executable):
+        return True
+    return False
+
+
+def is_protected_entry(entry):
+    """True if this {"name","exe"} identity is Process Watchdog itself or a
+    protected core OS executable/path. Works without a live process, so it
+    covers offline Browse/manual entries as well as matched processes."""
+    name = (entry.get("name") or "").lower()
+    exe = (entry.get("exe") or "").lower()
+
+    if exe == _norm_path(sys.executable):
+        return True
+    if not exe and name == os.path.basename(sys.executable).lower():
+        return True
+    for hint in SYSTEM_PATH_HINTS:
+        if hint in exe:
+            return True
+    if name in PROTECTED_PROCESS_NAMES:
         return True
     return False
 
@@ -327,12 +349,19 @@ def kill_processes(entries):
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             continue
 
-    # Never terminate Process Watchdog itself. Filter once at the point
-    # where all kill sources (direct matches and descendants) have already
-    # merged, so self is excluded from the kill set entirely — there is
-    # exactly one place to verify, and self can never be reached via any
-    # source path.
-    to_kill = {pid: proc for pid, proc in to_kill.items() if not _is_self(proc)}
+    # Never terminate Process Watchdog itself or a protected core OS
+    # identity. Filter once at the point where all kill sources (direct
+    # matches and descendants) have already merged, so self and protected
+    # identities are excluded from the kill set entirely — there is exactly
+    # one place to verify, and neither can ever be reached via any source
+    # path.
+    to_kill = {
+        pid: proc
+        for pid, proc in to_kill.items()
+        if not _is_self(proc)
+        and not is_protected_entry({"name": proc.info.get("name", ""),
+                                    "exe": proc.info.get("exe", "")})
+    }
 
     killed = 0
     for proc in to_kill.values():
