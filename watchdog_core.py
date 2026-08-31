@@ -222,18 +222,9 @@ def open_trigger_names(entries):
 
 def kill_processes(entries):
     """Force-kill every running process matching the given identity entries,
-    plus:
-      - every descendant in its process tree (spawned child/helper processes)
-      - every OTHER running process installed in the same folder (catches
-        helper services that aren't actual child processes — just separate
-        binaries living next to the main exe).
+    plus every descendant in its process tree (spawned child/helper processes).
     Returns count killed."""
     matched = find_matching_processes(entries)
-    install_dirs = set()
-    for proc in matched:
-        exe = proc.info.get("exe")
-        if exe:
-            install_dirs.add(os.path.dirname(exe).lower())
 
     to_kill = {}
     for proc in matched:
@@ -244,23 +235,11 @@ def kill_processes(entries):
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             continue
 
-    if install_dirs:
-        for proc in psutil.process_iter(attrs=["pid", "exe"]):
-            try:
-                exe = proc.info.get("exe")
-                if not exe:
-                    continue
-                exe_dir = os.path.dirname(exe).lower()
-                if any(exe_dir == d or exe_dir.startswith(d + os.sep) for d in install_dirs):
-                    to_kill[proc.info["pid"]] = proc
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                continue
-
     # Never terminate Process Watchdog itself. Filter once at the point
-    # where all three kill sources (direct matches, descendants, and other
-    # binaries installed beneath a matched project) have already merged, so
-    # self is excluded from the kill set entirely — there is exactly one
-    # place to verify, and self can never be reached via any source path.
+    # where all kill sources (direct matches and descendants) have already
+    # merged, so self is excluded from the kill set entirely — there is
+    # exactly one place to verify, and self can never be reached via any
+    # source path.
     to_kill = {pid: proc for pid, proc in to_kill.items() if not _is_self(proc)}
 
     killed = 0

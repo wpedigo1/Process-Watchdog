@@ -53,15 +53,29 @@ class KillSelectionTests(unittest.TestCase):
         self.assertEqual(fake.kill_calls, 1)
         self.assertEqual(child.kill_calls, 1)
 
-    def test_same_directory_neighbor_is_killed_current_behavior(self):
+    def test_same_directory_neighbor_is_not_killed(self):
         # Punch board Mission 3 removes same-directory neighbor killing.
+        # A neighbor sharing the install directory is never enumerated into
+        # the kill set — only the directly matched process is killed.
         fake = FakeProc(1, info={"name": "app.exe", "exe": APP_EXE})
         neighbor = FakeProc(3, info={"pid": 3, "name": "helper.exe", "exe": r"C:\App\helper.exe"})
         with patch.object(watchdog_app, "find_matching_processes", return_value=[fake]), \
              patch.object(watchdog_app.psutil, "process_iter", return_value=[neighbor]):
             result = watchdog_app.kill_processes([ENTRY])
-        self.assertEqual(result, 2)
-        self.assertEqual(neighbor.kill_calls, 1, "same-directory neighbor is currently killed")
+        self.assertEqual(result, 1)
+        self.assertEqual(neighbor.kill_calls, 0, "same-directory neighbor is not killed")
+
+    def test_kill_processes_does_not_call_process_iter(self):
+        # The only caller of psutil.process_iter inside kill_processes was the
+        # removed directory-expansion block. kill_processes must not enumerate
+        # all system processes for a plain direct-match scenario.
+        fake = FakeProc(1, info={"name": "app.exe", "exe": APP_EXE})
+        with patch.object(watchdog_app, "find_matching_processes", return_value=[fake]), \
+             patch.object(watchdog_app.psutil, "process_iter") as mock_iter:
+            result = watchdog_app.kill_processes([ENTRY])
+        self.assertEqual(result, 1)
+        self.assertEqual(fake.kill_calls, 1)
+        mock_iter.assert_not_called()
 
     def test_kill_raising_no_such_process_not_counted(self):
         fake = FakeProc(1, info={"name": "app.exe", "exe": APP_EXE},
@@ -115,23 +129,22 @@ class KillSelectionTests(unittest.TestCase):
         self.assertEqual(result, 0)
         self.assertEqual(own.kill_calls, 0, "self matched by exe path must never receive kill()")
 
-    def test_self_excluded_when_reached_via_install_directory_expansion(self):
-        # Self must be excluded even when it would otherwise be reached via
-        # install-directory expansion (its exe lives in the same directory as
-        # a legitimately matched, unrelated target) — proving the single
-        # merge-point exclusion covers all three kill sources, not just the
-        # direct-match source.
-        install_dir = os.path.dirname(sys.executable)
-        target_exe = os.path.join(install_dir, "unrelated-app.exe")
-        target = FakeProc(1, info={"pid": 1, "name": "unrelated-app.exe", "exe": target_exe})
-        self_proc = FakeProc(99998, info={"pid": 99998, "name": "watchdog.exe", "exe": sys.executable})
+    def test_self_excluded_when_reached_as_recursive_child(self):
+        # Self-protection must hold even when self is reached via the
+        # descendant kill-source: a self-owned process returned as a recursive
+        # child of a legitimately matched target. The former third test relied
+        # on install-directory expansion (removed by Mission 1D), so this has
+        # been renamed to cover the descendant source that remains.
+        self_pid = os.getpid()
+        own_child = FakeProc(self_pid, info={"pid": self_pid, "name": "watchdog.exe", "exe": sys.executable})
+        target = FakeProc(1, info={"pid": 1, "name": "app.exe", "exe": APP_EXE}, children=[own_child])
         with patch.object(watchdog_app, "find_matching_processes", return_value=[target]), \
-             patch.object(watchdog_app.psutil, "process_iter", return_value=[self_proc]):
+             patch.object(watchdog_app.psutil, "process_iter", return_value=[]):
             result = watchdog_app.kill_processes([ENTRY])
         self.assertEqual(result, 1, "legitimately matched target is still killed")
         self.assertEqual(target.kill_calls, 1)
-        self.assertEqual(self_proc.kill_calls, 0,
-                         "self reached via install-directory expansion must never receive kill()")
+        self.assertEqual(own_child.kill_calls, 0,
+                         "self reached as a recursive child must never receive kill()")
 
 
 if __name__ == "__main__":

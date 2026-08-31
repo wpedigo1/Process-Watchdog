@@ -84,7 +84,7 @@ Acceptance gate
 - Protected targets cannot be added through any UI path.
 - Tests cover migration and selection behavior.
 Mission 3 — Safe Feeding Engine
-Status: ⬜ Planned (partial: feeding-engine self-exclusion closed by Mission 1C — see note under Permanent protection; SYSTEM/protected/UI-wide protection still open)
+Status: ⬜ Planned (partial: feeding-engine self-exclusion closed by Mission 1C; same-directory-neighbor kill expansion removed by Mission 1D — see notes under Target behavior / Permanent protection; SYSTEM/protected/UI-wide protection, meal-list model, and Train/Retrain still open, blocked on Mission 2)
 Depends on: Mission 2
 Trigger behavior
 - Preserve current Windows visible-window logic.
@@ -105,6 +105,10 @@ Target behavior
 - Eat child processes belonging to explicitly selected targets.
 - Do not automatically eat unselected executables from the same installation folder.
 - Remove the current same-directory expansion behavior.
+- [CLOSED by Mission 1D] kill_processes no longer enumerates every running process or kills
+  unselected same-folder neighbors; it only targets direct matches and their recursive
+  descendants (plus Mission 1C self-exclusion). Directory-expansion mechanism removed entirely;
+  psutil.process_iter is no longer called from kill_processes.
 - Deduplicate targets by PID before feeding.
 - Handle processes that disappear during enumeration.
 - Handle access-denied results honestly.
@@ -114,9 +118,9 @@ Permanent protection
 - Never allow Process Watchdog to eat itself.
 - [CLOSED for the feeding engine by Mission 1C] kill_processes excludes
   Process Watchdog's own process (by pid == os.getpid() OR exe ==
-  sys.executable, normalized) at the single merge point where all three
-  kill sources (direct match, descendants, install-directory expansion)
-  converge. This governs the feeding engine only; the picker/filter/UI-wide
+  sys.executable, normalized) at the single merge point where all kill
+  sources (direct match, descendants) converge. This governs the feeding
+  engine only; the picker/filter/UI-wide
   "never show or target ProcessWatchdog.exe" enforcement, and the
   SYSTEM/protected-process/protected-path exclusions, remain open.
 - Exclude SYSTEM, LOCAL SERVICE, and NETWORK SERVICE processes.
