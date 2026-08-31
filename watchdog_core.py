@@ -565,3 +565,47 @@ def apply_window_icon(win):
         win.iconbitmap(default=resource_path("icon.ico"))
     except Exception:
         pass
+
+
+# ---------------------------------------------------------------------------
+# Windows theme / accent helpers (read-only, fail safe)
+# ---------------------------------------------------------------------------
+
+def _read_reg_dword(key, value_name, default=None):
+    """Read a DWORD from HKCU, returning default on any failure (missing key,
+    missing value, wrong type). Never raises."""
+    if os.name != "nt":
+        return default
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key, 0, winreg.KEY_READ) as hkey:
+            value, value_type = winreg.QueryValueEx(hkey, value_name)
+        if value_type != winreg.REG_DWORD:
+            return default
+        return value
+    except Exception:
+        return default
+
+
+def detect_windows_theme():
+    """Return "light" or "dark" from the Windows AppsUseLightTheme setting.
+    A missing key/value is the Windows default (light) — never an error."""
+    apps_theme = _read_reg_dword(
+        r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
+        "AppsUseLightTheme",
+        default=1,
+    )
+    return "light" if apps_theme else "dark"
+
+
+def get_accent_color():
+    """Return the Windows accent color as "#RRGGBB". DWM AccentColor is stored
+    as 0xAABBGGRR (alpha, then B, G, R). On any failure fall back to Windows'
+    own default Fluent accent blue. Never raises."""
+    accent = _read_reg_dword(r"Software\Microsoft\Windows\DWM", "AccentColor")
+    if accent is None:
+        return "#0078D4"
+    r = (accent >> 0) & 0xFF
+    g = (accent >> 8) & 0xFF
+    b = (accent >> 16) & 0xFF
+    return "#%02X%02X%02X" % (r, g, b)

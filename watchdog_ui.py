@@ -13,15 +13,73 @@ import uuid
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 
+from PIL import Image, ImageTk
+
 from watchdog_core import (
     APP_NAME,
     _user32,
     _gdi32,
     apply_window_icon,
+    detect_windows_theme,
+    get_accent_color,
     get_process_groups,
     is_protected_entry,
+    resource_path,
     save_config,
 )
+
+
+# ---------------------------------------------------------------------------
+# Theme palettes + application
+# ---------------------------------------------------------------------------
+
+_PALETTES = {
+    "light": {"bg": "#F3F3F3", "fg": "#000000", "entry_bg": "#FFFFFF"},
+    "dark": {"bg": "#202020", "fg": "#FFFFFF", "entry_bg": "#2D2D30"},
+}
+
+
+def _build_palette():
+    pal = dict(_PALETTES[detect_windows_theme()])
+    pal["accent"] = get_accent_color()
+    return pal
+
+
+def apply_theme(widget, palette):
+    """Recursively theme a widget tree using a plain-tk color pass. Plain tk
+    widgets are recolored by type via config(bg/fg); ttk.Treeview is themed
+    through ttk.Style (selection background = accent). Unknown widget types are
+    left untouched. Safe to call at any time — just recolors in place."""
+    for child in widget.winfo_children():
+        cls = child.__class__.__name__
+        if cls == "Button":
+            child.config(bg=palette["bg"], fg=palette["fg"], activebackground=palette["accent"])
+        elif cls == "Label":
+            child.config(bg=palette["bg"], fg=palette["fg"])
+        elif cls == "Frame":
+            child.config(bg=palette["bg"])
+        elif cls == "Toplevel":
+            child.config(bg=palette["bg"])
+        elif cls == "Entry":
+            child.config(bg=palette["entry_bg"], fg=palette["fg"], insertbackground=palette["fg"])
+        elif isinstance(child, ttk.Treeview):
+            style = ttk.Style()
+            style.theme_use("clam")
+            style.configure("Treeview", background=palette["entry_bg"],
+                            foreground=palette["fg"],
+                            fieldbackground=palette["entry_bg"])
+            style.map("Treeview",
+                      background=[("selected", palette["accent"])],
+                      foreground=[("selected", "#FFFFFF")])
+        apply_theme(child, palette)
+    return widget
+
+
+def load_logo_img(pixels):
+    """Load icon.ico, resize to exact pixels, return an ImageTk.PhotoImage.
+    Caller MUST keep a reference (e.g. as instance attribute) or Tkinter GCs it."""
+    img = Image.open(resource_path("icon.ico")).resize((pixels, pixels), Image.LANCZOS)
+    return ImageTk.PhotoImage(img)
 
 
 def animate_eaten(win, on_done, bites=7, bite_delay_ms=150):
@@ -229,6 +287,17 @@ class watchdogDialog(tk.Toplevel):
         self.minsize(460, 620)
         apply_window_icon(self)
 
+        self._logo_img = load_logo_img(40)
+        header = tk.Frame(self)
+        header.pack(fill="x", padx=8, pady=(8, 0))
+        tk.Label(header, image=self._logo_img).pack(side="left")
+        tk.Label(
+            header,
+            text=("Retrain " + (watchdog.get("name", "")).strip())
+            if watchdog.get("name") else "Train a Watchdog",
+            font=("Segoe UI", 12, "bold"),
+        ).pack(side="left", padx=(8, 0))
+
         watchdog = watchdog or {}
         existing_app = watchdog.get("watched_app")
         existing_meal = watchdog.get("meal_targets", [])
@@ -306,6 +375,9 @@ class watchdogDialog(tk.Toplevel):
 
         self.transient(master)
         self.grab_set()
+
+        self._palette = _build_palette()
+        apply_theme(self, self._palette)
 
     def _watch_changed(self):
         """Reflect the chosen watched app into the leftovers list as a locked,
@@ -442,6 +514,13 @@ class UserGuideWindow(tk.Toplevel):
         self.minsize(360, 400)
         apply_window_icon(self)
 
+        self._logo_img = load_logo_img(32)
+        header = tk.Frame(self)
+        header.pack(fill="x", padx=12, pady=(8, 0))
+        tk.Label(header, image=self._logo_img).pack(side="left")
+        tk.Label(header, text="Trainer's Guide", font=("Segoe UI", 12, "bold")).pack(
+            side="left", padx=(8, 0))
+
         text = tk.Text(self, wrap="word", padx=12, pady=10, borderwidth=0)
         text.insert("1.0", self.GUIDE_TEXT)
         text.configure(state="disabled")
@@ -451,6 +530,8 @@ class UserGuideWindow(tk.Toplevel):
 
         self.protocol("WM_DELETE_WINDOW", self._close_now)
         self._remaining = self.COUNTDOWN_SECONDS
+        self._palette = _build_palette()
+        apply_theme(self, self._palette)
         self._tick()
 
     def _tick(self):
@@ -502,6 +583,9 @@ class RehomeDialog(tk.Toplevel):
         self.grab_set()
         self.protocol("WM_DELETE_WINDOW", self._cancel)
 
+        self._palette = _build_palette()
+        apply_theme(self, self._palette)
+
     def _confirm(self):
         self.result = True
         self.destroy()
@@ -523,6 +607,16 @@ class ConfigWindow:
         self.root.protocol("WM_DELETE_WINDOW", self.hide)
         apply_window_icon(self.root)
         self.root.withdraw()  # start hidden — only the tray icon opens it
+
+        self._logo_img = load_logo_img(48)
+        header = tk.Frame(self.root)
+        header.pack(fill="x", padx=10, pady=(10, 0))
+        tk.Label(header, image=self._logo_img).pack(side="left")
+        tk.Label(header, text=APP_NAME, font=("Segoe UI", 14, "bold")).pack(side="left", padx=(8, 0))
+
+        self._pack_status = tk.StringVar()
+        tk.Label(self.root, textvariable=self._pack_status, font=("Segoe UI", 9)).pack(
+            anchor="w", padx=12, pady=(4, 0))
 
         grace_row = tk.Frame(self.root)
         grace_row.pack(fill="x", padx=10, pady=(10, 0))
@@ -565,6 +659,16 @@ class ConfigWindow:
 
         self.refresh_tree()
 
+        self._palette = _build_palette()
+        apply_theme(self.root, self._palette)
+
+    def show(self):
+        self._palette = _build_palette()
+        apply_theme(self.root, self._palette)
+        self.root.deiconify()
+        self.root.lift()
+        self.refresh_tree()
+
     def _save_grace(self):
         try:
             val = int(self.grace_var.get())
@@ -582,7 +686,14 @@ class ConfigWindow:
                               values=(watchdog.get("name", ""),
                                       "Yes" if watchdog.get("enabled", True) else "No",
                                       "Watching" if watchdog.get("enabled", True) else "Off watch."))
+        self._update_pack_status()
         self._update_toggle_label()
+
+    def _update_pack_status(self):
+        watchdogs = self.cfg["watchdogs"]
+        total = len(watchdogs)
+        enabled = sum(1 for w in watchdogs if w.get("enabled", True))
+        self._pack_status.set(f"{enabled} of {total} watchdogs on watch")
 
     def _tick_status(self):
         """Runs every second: updates the Status column with a live state for
@@ -731,10 +842,6 @@ class ConfigWindow:
             save_config(self.cfg)
             self.on_change(self.cfg)
             self.refresh_tree()
-
-    def show(self):
-        self.root.deiconify()
-        self.root.lift()
 
     def hide(self):
         animate_eaten(self.root, on_done=self.root.withdraw)

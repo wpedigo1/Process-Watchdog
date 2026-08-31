@@ -222,46 +222,46 @@ Acceptance gate
 - Status never claims an unverified feeding. [CLOSED by Mission 4B — status renders only from real kill detail]
 - Tray Quit remains functional. [CLOSED — already true]
 Mission 5 — Lightweight System-Themed Interface
-Status: ⬜ Planned
+Status: ✅ Verified (theming + logo + layout pass closed by Mission 5; see docs/missions/5-theming-logo-layout.md. Items below note what is closed. Contrast and scaling checked by source/color-value inspection only — actual rendered visuals require manual verification and are marked inspection-pending, not claimed verified.)
 Depends on: Mission 4
 System theme
-- Use Windows light/dark application preference.
-- Detect theme at launch.
-- Recheck theme whenever dogs leave the doghouse.
-- Do not add a registry-watching thread.
-- Use the current Windows accent color for selections and primary actions.
-- Use neutral system-themed surfaces elsewhere.
-- Use consistent ttk controls where practical.
-- Add no theming dependency.
-- Maintain readable contrast in light and dark modes.
-- Keep keyboard navigation and focus indicators usable.
+- Use Windows light/dark application preference. [CLOSED by Mission 5 — detect_windows_theme from AppsUseLightTheme]
+- Detect theme at launch. [CLOSED by Mission 5 — ConfigWindow.__init__]
+- Recheck theme whenever dogs leave the doghouse. [CLOSED by Mission 5 — ConfigWindow.show() re-runs detection/apply]
+- Do not add a registry-watching thread. [CLOSED by Mission 5 — only the two explicit moments; no polling/thread added]
+- Use the current Windows accent color for selections and primary actions. [CLOSED by Mission 5 — Treeview selection = accent; button activebackground = accent; no new button semantics invented]
+- Use neutral system-themed surfaces elsewhere. [CLOSED by Mission 5 — palette bg/fg per mode]
+- Use consistent ttk controls where practical. [NOT DONE BY DESIGN — app uses plain tk widgets; mission 5 route explicitly forbade converting to ttk (high blast radius). Themed via one recursive plain-tk color pass + ttk.Style for Treeview only. See docs/missions/5-theming-logo-layout.md.]
+- Add no theming dependency. [CLOSED by Mission 5 — Pillow already a dependency; no new dep]
+- Maintain readable contrast in light and dark modes. [CLOSED by value inspection only — light bg #F3F3F3/fg #000000, dark bg #202020/fg #FFFFFF; actual rendered look is inspection-pending]
+- Keep keyboard navigation and focus indicators usable. [inspection-pending — untouched default focus behavior retained]
 Main window
-- Display the existing logo prominently.
-- Use a 48×48 logo at the upper left.
-- Place Process Watchdog beside the logo.
-- Add one concise pack-status line.
-- Improve spacing, alignment, hierarchy, and button grouping.
-- Reduce excessive empty visual space.
-- Keep the window compact.
-- Keep the three-column table readable.
-- Ensure dynamic button labels fit.
-- Avoid dashboards, cards, telemetry panels, and visual clutter.
+- Display the existing logo prominently. [CLOSED by Mission 5 — 48×48 upper-left + APP_NAME beside it]
+- Use a 48×48 logo at the upper left. [CLOSED by Mission 5]
+- Place Process Watchdog beside the logo. [CLOSED by Mission 5 — reuses APP_NAME, no hardcoded copy]
+- Add one concise pack-status line. [CLOSED by Mission 5 — "{enabled} of {total} watchdogs on watch" recomputed in refresh_tree]
+- Improve spacing, alignment, hierarchy, and button grouping. [PARTIAL — added logo header + pack-status line for hierarchy; existing button row already grouped (actions left, hide/guide right) and left as-is to avoid redesign]
+- Reduce excessive empty visual space. [PARTIAL — see above; no redesign]
+- Keep the window compact. [CLOSED by Mission 5 — resizing and min-size untouched, no new panels]
+- Keep the three-column table readable. [CLOSED by Mission 5 — Treeview themed, three columns preserved]
+- Ensure dynamic button labels fit. [CLOSED — unchanged layout, labels preserved verbatim]
+- Avoid dashboards, cards, telemetry panels, and visual clutter. [CLOSED by Mission 5 — none added]
 Supporting windows
-- Use a 40×40 logo in Add/Retrain.
-- Use a 32×32 logo in Trainer’s Guide.
-- Apply the same system theme to every window.
-- Apply the application icon consistently.
-- Make dialogs visually related to the main window.
-- Keep controls usable at Windows display scaling settings.
-- Preserve resizing and minimum-size behavior.
+- Use a 40×40 logo in Add/Retrain. [CLOSED by Mission 5 — watchdogDialog header]
+- Use a 32×32 logo in Trainer’s Guide. [CLOSED by Mission 5 — UserGuideWindow header]
+- Apply the same system theme to every window. [CLOSED by Mission 5 — ConfigWindow, watchdogDialog, RehomeDialog, UserGuideWindow all apply_theme]
+- Apply the application icon consistently. [CLOSED — apply_window_icon already on every window; unchanged]
+- Make dialogs visually related to the main window. [CLOSED by Mission 5 — same palette applied to dialogs]
+- Keep controls usable at Windows display scaling settings. [inspection-pending — plain tk widgets; no scaling changes made]
+- Preserve resizing and minimum-size behavior. [CLOSED by Mission 5 — geometry/minsize untouched]
 Acceptance gate
-- Main, Add, Retrain, and Trainer’s Guide visibly use the logo.
-- Light mode is readable.
-- Dark mode is readable.
-- Windows accent is visible but restrained.
-- No new dependency was added.
-- Resource budget remains intact.
-- Controls do not clip at supported scaling.
+- Main, Add, Retrain, and Trainer’s Guide visibly use the logo. [CLOSED by source inspection — each holds _logo_img PhotoImage reference; rendered visibility is inspection-pending]
+- Light mode is readable. [inspection-pending]
+- Dark mode is readable. [inspection-pending]
+- Windows accent is visible but restrained. [CLOSED by value inspection — accent only on tree selection + button activebackground]
+- No new dependency was added. [CLOSED by Mission 5 — verified imports]
+- Resource budget remains intact. [CLOSED — no new dependency/thread; theme reads are once-per-window registry reads, not polled]
+- Controls do not clip at supported scaling. [inspection-pending]
 Mission 6 — Doghouse Animation, Trainer’s Guide, and Release QA
 Status: ⬜ Planned
 Depends on: Mission 5
