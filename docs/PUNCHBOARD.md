@@ -84,7 +84,7 @@ Acceptance gate
 - Protected targets cannot be added through any UI path.
 - Tests cover migration and selection behavior.
 Mission 3 — Safe Feeding Engine
-Status: 🟨 Active (partial: feeding-engine self-exclusion closed by Mission 1C; same-directory-neighbor kill expansion removed by Mission 1D; meal-list watch/meal model + Train/Retrain + config migration closed by Mission 2; protected-executable/path + core-engine enforcement + offline Browse/manual rejection closed by Mission 3 — see notes under Permanent protection; picker-display "never show ProcessWatchdog.exe" and the username-based SYSTEM/LOCAL/NETWORK SERVICE feeding filter are still open)
+Status: 🟨 Active (partial: feeding-engine self-exclusion closed by Mission 1C; same-directory-neighbor kill expansion removed by Mission 1D; meal-list watch/meal model + Train/Retrain + config migration closed by Mission 2; protected-executable/path + core-engine enforcement + offline Browse/manual rejection closed by Mission 3 — see notes under Permanent protection; picker-display self-hiding was also closed by Mission 2, not Mission 3: get_process_groups excludes pid == os.getpid(); the username-based SYSTEM/LOCAL/NETWORK SERVICE feeding filter is still open)
 Depends on: Mission 2
 Trigger behavior
 - Preserve current Windows visible-window logic.
@@ -126,8 +126,9 @@ Permanent protection
   it also rejects self by name-only and by protected name/path. Offline
   Browse/manual entry in both sections (Watch This App and Eat These
   Leftovers) is rejected before adding. See
-  docs/missions/3-protected-target-enforcement.md. The picker/filter
-  display-level "never show ProcessWatchdog.exe" hiding remains open.
+  docs/missions/3-protected-target-enforcement.md. The picker-display
+  "never show ProcessWatchdog.exe" hiding was already closed by Mission 2
+  (`get_process_groups` excludes `pid == os.getpid()`), not by Mission 3.
 - Exclude SYSTEM, LOCAL SERVICE, and NETWORK SERVICE processes.
   [STILL OPEN in the feeding engine: is_protected_entry is identity-only
   (name/path) and cannot evaluate the live-process username check that
@@ -140,7 +141,8 @@ Permanent protection
   Apply protection to the picker, filter, browsing, manual entry, migration,
   and feeding engine. Migration is deliberately not rewritten (enforcement
   lives in the core engine; see Mission 3 doc). Picker/filter display-level
-  hiding of ProcessWatchdog.exe remains open.
+  hiding of ProcessWatchdog.exe was already closed by Mission 2
+  (`get_process_groups` excludes `pid == os.getpid()`).
 - Keep normal user applications under Program Files available.
 - [CLOSED by Mission 3] Enforce protection inside the core engine, not only
   in the UI.
