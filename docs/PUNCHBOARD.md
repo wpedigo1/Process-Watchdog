@@ -34,7 +34,7 @@ Acceptance gate
 - Automated tests pass.
 - Resource use has not meaningfully changed.
 Mission 2 — Train and Retrain Watchdogs
-Status: ⬜ Planned
+Status: ✅ Verified (Mission 2 complete — watch/meal model, Retrain dialog, config migration; see docs/missions/2-watch-meal-model.md)
 Depends on: Mission 1
 Watchdog model
 - Every Watchdog watches exactly one application.
@@ -84,7 +84,7 @@ Acceptance gate
 - Protected targets cannot be added through any UI path.
 - Tests cover migration and selection behavior.
 Mission 3 — Safe Feeding Engine
-Status: ⬜ Planned (partial: feeding-engine self-exclusion closed by Mission 1C; same-directory-neighbor kill expansion removed by Mission 1D — see notes under Target behavior / Permanent protection; SYSTEM/protected/UI-wide protection, meal-list model, and Train/Retrain still open, blocked on Mission 2)
+Status: 🟨 Active (partial: feeding-engine self-exclusion closed by Mission 1C; same-directory-neighbor kill expansion removed by Mission 1D; meal-list watch/meal model + Train/Retrain + config migration closed by Mission 2 — see notes under Target behavior / Permanent protection; SYSTEM/protected/UI-wide protection still open)
 Depends on: Mission 2
 Trigger behavior
 - Preserve current Windows visible-window logic.

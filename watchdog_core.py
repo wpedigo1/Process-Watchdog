@@ -63,6 +63,7 @@ def load_config():
         for watchdog in data["watchdogs"]:
             watchdog["trigger"] = [_normalize_process_entry(e) for e in watchdog.get("trigger", [])]
             watchdog["kill"] = [_normalize_process_entry(e) for e in watchdog.get("kill", [])]
+            _migrate_watchdog(watchdog)
         return data
     except Exception:
         return dict(DEFAULT_CONFIG)
@@ -133,6 +134,96 @@ def _is_self(proc):
     if _norm_path(proc.info.get("exe")) == _norm_path(sys.executable):
         return True
     return False
+
+
+# ---------------------------------------------------------------------------
+# Watched-app / meal-target model
+# ---------------------------------------------------------------------------
+
+def _entry_key(e):
+    """Dedup identity for a process entry: (normalized name, normalized exe).
+    "" and None both normalize to '', so a name-only entry never collides with
+    an exact-path entry of a different name."""
+    return (_norm_path(e.get("name")), _norm_path(e.get("exe")))
+
+
+def _dedupe_entries(entries):
+    """Dedupe process entries by (name, exe) identity, preserving order."""
+    seen = set()
+    out = []
+    for e in entries:
+        key = _entry_key(e)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(e)
+    return out
+
+
+def effective_trigger(watchdog):
+    """The entries a watchdog actually triggers on: just [watched_app] when a
+    watched app is set, [] otherwise (a watched_app of None means the watchdog
+    is ambiguous and never triggers until Retrain sets one)."""
+    app = watchdog.get("watched_app")
+    return [app] if app else []
+
+
+def effective_kill(watchdog):
+    """Everything a watchdog kills: the watched app (always an implicit kill
+    target) plus its meal_targets, deduplicated by (name, exe). With no
+    watched_app (ambiguous, not yet retrained) it is meal_targets verbatim — no
+    dedup, mirroring what was persisted."""
+    app = watchdog.get("watched_app")
+    if not app:
+        return watchdog.get("meal_targets", [])
+    candidates = [app]
+    candidates.extend(watchdog.get("meal_targets", []))
+    return _dedupe_entries(candidates)
+
+
+def _migrate_watchdog(watchdog):
+    """Migrate one watchdog in place from the legacy trigger/kill schema to the
+    watched_app/meal_targets schema.
+
+    - Already has watched_app: leave as-is (already migrated); drop any leftover
+      trigger/kill keys and ensure meal_targets never duplicates the watched app.
+    - Exactly 1 distinct (name, exe) in trigger: that is watched_app; meal_targets
+      is kill minus the watched app, deduped.
+    - 0 distinct in trigger: watched_app = None; meal_targets is kill as-is
+      (unchanged). Ambiguous — needs Retrain.
+    - 2+ distinct in trigger: watched_app = None; meal_targets is dedup(trigger +
+      kill) preserving every candidate. Ambiguous — needs Retrain.
+    """
+    if "watched_app" in watchdog:
+        watchdog.pop("trigger", None)
+        watchdog.pop("kill", None)
+        app = watchdog.get("watched_app")
+        app = _normalize_process_entry(app) if app is not None else None
+        watchdog["watched_app"] = app
+        meal = [_normalize_process_entry(e) for e in watchdog.get("meal_targets", [])]
+        if app is not None:
+            akey = _entry_key(app)
+            meal = [e for e in meal if _entry_key(e) != akey]
+        watchdog["meal_targets"] = _dedupe_entries(meal)
+        return
+
+    trigger = watchdog.get("trigger", [])
+    kill = watchdog.get("kill", [])
+    distinct_trigger = {_entry_key(e) for e in trigger if e.get("name")}
+
+    if len(distinct_trigger) == 1:
+        app = _normalize_process_entry(trigger[0])
+        akey = _entry_key(app)
+        meal = _dedupe_entries([e for e in kill if _entry_key(e) != akey])
+    else:
+        # 0 or 2+ distinct trigger entries -> ambiguous, watched_app stays None
+        app = None
+        meal = kill if len(trigger) == 0 else _dedupe_entries(trigger + kill)
+
+    watchdog["watched_app"] = app
+    watchdog["meal_targets"] = meal
+    watchdog.pop("trigger", None)
+    watchdog.pop("kill", None)
 
 
 def find_matching_processes(entries):
@@ -280,8 +371,8 @@ class Watcher(threading.Thread):
                 if not watchdog.get("enabled", True):
                     self._open_names.pop(rid, None)
                     continue
-                trigger = watchdog.get("trigger", [])
-                kill_list = watchdog.get("kill", [])
+                trigger = effective_trigger(watchdog)
+                kill_list = effective_kill(watchdog)
 
                 open_names = open_trigger_names(trigger)
                 self._open_names[rid] = open_names
@@ -331,9 +422,12 @@ def get_process_groups(hide_system=True):
     not just by name (two different apps can ship an identically-named
     exe, e.g. a bundled Chromium runtime vs. the real Google Chrome)."""
     procs = []
-    for proc in psutil.process_iter(attrs=["name", "exe"]):
+    for proc in psutil.process_iter(attrs=["pid", "name", "exe"]):
         try:
             if hide_system and is_system_process(proc):
+                continue
+            if proc.info.get("pid") == os.getpid():
+                # Never offer Process Watchdog's own running instance as a target.
                 continue
             name = proc.info.get("name") or ""
             if not name:

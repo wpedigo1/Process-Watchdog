@@ -69,7 +69,7 @@ class LoadConfigTests(unittest.TestCase):
         inherited_rules = [w for w in loaded["watchdogs"] if w.get("id") == "legacy"]
         self.assertEqual(inherited_rules, [], "legacy rules should be discarded when watchdogs is non-empty")
 
-    def test_load_config_normalizes_legacy_string_entries_in_trigger_and_kill(self):
+    def test_load_config_normalizes_legacy_string_entries_into_watched_app_and_meal_targets(self):
         content = {
             "watchdogs": [{
                 "id": "wd1", "name": "WD", "enabled": True,
@@ -83,8 +83,10 @@ class LoadConfigTests(unittest.TestCase):
             with patch.object(watchdog_app, "CONFIG_PATH", str(config_path)):
                 loaded = watchdog_app.load_config()
         wd = loaded["watchdogs"][0]
-        self.assertEqual(wd["trigger"], [{"name": "app.exe", "exe": ""}])
-        self.assertEqual(wd["kill"], [{"name": "helper.exe", "exe": ""}])
+        self.assertEqual(wd["watched_app"], {"name": "app.exe", "exe": ""})
+        self.assertEqual(wd["meal_targets"], [{"name": "helper.exe", "exe": ""}])
+        self.assertNotIn("trigger", wd)
+        self.assertNotIn("kill", wd)
 
     def test_load_config_preserves_id_name_and_enabled(self):
         content = {
@@ -121,14 +123,13 @@ class SaveLoadRoundTripTests(unittest.TestCase):
             "watchdogs": [
                 {
                     "id": "wd-1", "name": "First", "enabled": True,
-                    "trigger": [{"name": "a.exe", "exe": r"C:\Apps\A\a.exe"}],
-                    "kill": [{"name": "a.exe", "exe": r"C:\Apps\A\a.exe"},
-                             {"name": "helper.exe", "exe": r"C:\Apps\A\helper.exe"}],
+                    "watched_app": {"name": "a.exe", "exe": r"C:\Apps\A\a.exe"},
+                    "meal_targets": [{"name": "helper.exe", "exe": r"C:\Apps\A\helper.exe"}],
                 },
                 {
                     "id": "wd-2", "name": "Second", "enabled": False,
-                    "trigger": [{"name": "b.exe", "exe": ""}],
-                    "kill": [{"name": "b.exe", "exe": ""}],
+                    "watched_app": {"name": "b.exe", "exe": ""},
+                    "meal_targets": [],
                 },
             ],
         }
@@ -143,14 +144,14 @@ class SaveLoadRoundTripTests(unittest.TestCase):
         self.assertEqual([w["id"] for w in loaded["watchdogs"]], ["wd-1", "wd-2"])
         self.assertEqual([w["name"] for w in loaded["watchdogs"]], ["First", "Second"])
         self.assertEqual([w["enabled"] for w in loaded["watchdogs"]], [True, False])
-        self.assertEqual(loaded["watchdogs"][0]["trigger"], original["watchdogs"][0]["trigger"])
-        self.assertEqual(loaded["watchdogs"][0]["kill"], original["watchdogs"][0]["kill"])
+        self.assertEqual(loaded["watchdogs"][0]["watched_app"], original["watchdogs"][0]["watched_app"])
+        self.assertEqual(loaded["watchdogs"][0]["meal_targets"], original["watchdogs"][0]["meal_targets"])
 
     def test_save_config_output_is_valid_json(self):
         cfg = dict(watchdog_app.DEFAULT_CONFIG)
         cfg["watchdogs"] = [{"id": "x", "name": "X", "enabled": True,
-                             "trigger": [{"name": "t.exe", "exe": ""}],
-                             "kill": [{"name": "k.exe", "exe": ""}]}]
+                             "watched_app": {"name": "t.exe", "exe": ""},
+                             "meal_targets": [{"name": "k.exe", "exe": ""}]}]
         with tempfile.TemporaryDirectory() as temp_dir:
             config_path = Path(temp_dir) / "config.json"
             with patch.object(watchdog_app, "CONFIG_PATH", str(config_path)):

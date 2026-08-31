@@ -4,31 +4,36 @@ from unittest.mock import patch
 import watchdog_core as watchdog_app
 
 
-def _make_watchdog(enabled=True):
+def _make_watchdog(enabled=True, watched_app=True, meal_targets=None, wd_id="wd1", name="WD"):
+    if meal_targets is None:
+        meal_targets = [{"name": "app.exe", "exe": ""}]
     return {
-        "id": "wd1",
-        "name": "WD",
+        "id": wd_id,
+        "name": name,
         "enabled": enabled,
-        "trigger": [{"name": "app.exe", "exe": ""}],
-        "kill": [{"name": "app.exe", "exe": ""}],
+        "watched_app": {"name": "app.exe", "exe": ""} if watched_app else None,
+        "meal_targets": meal_targets,
     }
 
 
 class WatcherLoopTests(unittest.TestCase):
-    def _drive(self, script, enabled=True, grace=10.0, poll=1.0, max_iter=None):
+    def _drive(self, script, enabled=True, grace=10.0, poll=1.0, max_iter=None, watchdog=None):
         """Runs Watcher.run() deterministically.
 
         open_trigger_names returns script[i] on iteration i, the fake clock
         advances 15s per iteration (enough to clear the 10s grace), and the
         fake sleep stops the watcher after max_iter iterations.
         """
-        watchdog = _make_watchdog(enabled=enabled)
+        if watchdog is None:
+            watchdog = _make_watchdog(enabled=enabled)
         cfg = {"poll_interval": poll, "grace_seconds": grace, "watchdogs": [watchdog]}
         watcher = watchdog_app.Watcher(get_config=lambda: cfg)
         max_iter = max_iter if max_iter is not None else len(script)
         state = {"iter": 0, "t": 1000.0}
 
-        def fake_open(_trigger):
+        def fake_open(trigger):
+            if not trigger:
+                return []
             i = min(state["iter"], len(script) - 1)
             return script[i]
 
@@ -70,6 +75,19 @@ class WatcherLoopTests(unittest.TestCase):
             enabled=False, max_iter=4
         )
         mock_kill.assert_not_called()
+
+    def test_null_watched_app_never_triggers(self):
+        # watched_app=None is the ambiguous/legacy-ambiguous state: it must not
+        # schedule or perform any cleanup until Retrain sets a watched app.
+        watchdog = _make_watchdog(
+            watched_app=False,
+            meal_targets=[{"name": "helper.exe", "exe": ""}],
+        )
+        watcher, mock_kill = self._drive(
+            [["app.exe"], [], [], [], ["app.exe"]], max_iter=5, watchdog=watchdog
+        )
+        mock_kill.assert_not_called()
+        self.assertEqual(watcher.get_open()["wd1"], [])
 
 
 class WatcherStateTests(unittest.TestCase):
