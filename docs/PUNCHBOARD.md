@@ -351,20 +351,19 @@ Final acceptance gate
   psutil.Process objects and a real spawned parent+child kill — the exact
   shape FakeProc cannot represent. 94/94 tests pass (89 unchanged + 5 new).
   See docs/missions/6e-fix-kill-engine-info-crash.md.
-- [BLOCKER — defect 2, found by Mission 6D] watchdogDialog.__init__ crashes on
-  watchdog=None (watchdog_ui.py:300 uses watchdog.get before the `watchdog or {}`
-  normalization at :305; introduced by Mission 5 2e87354). The Add Watchdog button
-  silently does nothing in the windowed app.
-- [BLOCKER — defect 3, found by Mission 6D] ProcessPicker.set_locked passes invalid
-  disabled=True to ttk.Treeview.item (watchdog_ui.py:224; introduced by Mission 2
-  c36917b). Retrain-with-watched-app crashes; any watched-app selection empties the
-  meal list mid-refresh, and saving then silently drops existing meal targets
-  (observed data loss).
+- [BLOCKER — defect 2, found by Mission 6D — FIXED by Mission 6F]
+  watchdogDialog.__init__ now normalizes watchdog=None before the header reads it.
+  Real-Tk Add and named-Retrain construction tests pass. See
+  docs/missions/6f-fix-add-and-retrain-crashes.md.
+- [BLOCKER — defect 3, found by Mission 6D — FIXED by Mission 6F]
+  ProcessPicker's watched-app row now uses a supported Treeview tag instead of
+  disabled=True. Real-Tk tests verify locked refresh and preservation of a manually
+  added meal target. See docs/missions/6f-fix-add-and-retrain-crashes.md.
 - [DEFECT — defect 1, found by Mission 6D] get_process_groups lists the packaged
   app's own parent ProcessWatchdog.exe (pid-only self-exclusion; processwatchdog.exe
   not in PROTECTED_PROCESS_NAMES). Display-level "never show ProcessWatchdog.exe"
   violation; kill boundary still protected. Low severity.
-- The Final acceptance gate is NOT met. Defects 4, 2, 3 (and 1) require focused
-  follow-up missions with real-shape regression tests, followed by another release-QA
-  re-run. See docs/missions/6d-final-release-qa-rerun.md for all observed evidence.
+- The Final acceptance gate is NOT met. Mission 6D defect 1 (picker parent-pid
+  display) remains open, and the full release-QA requires another run after Missions
+  6E and 6F. See docs/missions/6d-final-release-qa-rerun.md for all observed evidence.
 This is the complete punch board and contains the approved product behavior, safety boundaries, visual direction, resource limits, migration requirements, and final verification gates.

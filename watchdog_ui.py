@@ -172,6 +172,7 @@ class ProcessPicker(tk.Frame):
         tree_row.pack(fill="both", expand=True, pady=(4, 0))
 
         self.tree = ttk.Treeview(tree_row, show="tree", selectmode=selectmode)
+        self.tree.tag_configure("locked", foreground="#888888")
         vsb = ttk.Scrollbar(tree_row, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=vsb.set)
         self.tree.pack(side="left", fill="both", expand=True)
@@ -221,8 +222,8 @@ class ProcessPicker(tk.Frame):
 
         if self._locked:
             n, e = self._locked
-            self.tree.item(self.tree.insert("", tk.END, text=f"{n}  \u2014 watched app (always eaten)"),
-                           disabled=True)
+            self.tree.insert("", tk.END, text=f"{n}  \u2014 watched app (always eaten)",
+                             tags=("locked",))
             live_idents.add((n, e))
 
         query = self.filter_var.get().strip().lower()
@@ -290,6 +291,7 @@ class watchdogDialog(tk.Toplevel):
         self.geometry("520x760")
         self.minsize(460, 620)
         apply_window_icon(self)
+        watchdog = watchdog or {}
 
         self._logo_img = load_logo_img(40)
         header = tk.Frame(self)
@@ -302,7 +304,6 @@ class watchdogDialog(tk.Toplevel):
             font=("Segoe UI", 12, "bold"),
         ).pack(side="left", padx=(8, 0))
 
-        watchdog = watchdog or {}
         existing_app = watchdog.get("watched_app")
         existing_meal = watchdog.get("meal_targets", [])
         existing_app_ident = (existing_app.get("name", ""), existing_app.get("exe", "") or "") if existing_app else None
