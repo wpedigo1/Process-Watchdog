@@ -16,7 +16,7 @@ if exist __pycache__ rmdir /s /q __pycache__
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 
-python -m PyInstaller --noconfirm --onefile --windowed ^
+python -m PyInstaller --noconfirm --onefile --windowed --uac-admin ^
   --name "ProcessWatchdog" ^
   --icon "icon.ico" ^
   --add-data "icon.ico;." ^

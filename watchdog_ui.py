@@ -472,6 +472,9 @@ class watchdogDialog(tk.Toplevel):
             "enabled": True,
             "watched_app": watched_app,
             "meal_targets": meal,
+            "has_had_first_bite": False,
+            "dog_sick": False,
+            "last_error": [],
         }
         self.destroy()
 
@@ -633,7 +636,8 @@ class ConfigWindow:
         self._last_result = {}  # watchdog_id -> {"name": str, "killed": [..], "failed": [..]}
         self.root = tk.Tk()
         self.root.title(APP_NAME)
-        self.root.geometry("640x480")
+        self.root.geometry("1000x520")
+        self.root.minsize(1000, 480)
         self.root.protocol("WM_DELETE_WINDOW", self.hide)
         apply_window_icon(self.root)
         self.root.withdraw()  # start hidden — only the tray icon opens it
@@ -661,20 +665,23 @@ class ConfigWindow:
 
         tk.Label(self.root, text="Watchdogs", font=("Segoe UI", 12, "bold")).pack(anchor="w", padx=10, pady=(10, 0))
 
-        self.tree = ttk.Treeview(self.root, columns=("name", "enabled", "status"), show="headings", height=10)
+        tree_row = tk.Frame(self.root)
+        tree_row.pack(fill="both", expand=True, padx=10, pady=6)
+        self.tree = ttk.Treeview(tree_row, columns=("name", "enabled", "status"), show="headings", height=10)
         self.tree.heading("name", text="Watchdogs")
         self.tree.heading("enabled", text="Watching")
         self.tree.heading("status", text="Dog Status")
         self.tree.column("name", width=180, anchor="w")
         self.tree.column("enabled", width=70, anchor="center")
         self.tree.column("status", width=220, anchor="w")
-        self.tree.pack(fill="both", expand=True, padx=10, pady=6)
+        self.tree_scrollbar = ttk.Scrollbar(
+            tree_row, orient="vertical", command=self.tree.yview)
+        self.tree.configure(yscrollcommand=self.tree_scrollbar.set)
+        self.tree.pack(side="left", fill="both", expand=True)
+        self.tree_scrollbar.pack(side="right", fill="y")
 
-        # Two button rows: per-watchdog management actions, then whole-window
-        # actions. Six multi-word buttons cannot fit one 640px line — the
-        # split is what guarantees every button stays visible.
         btn_row = tk.Frame(self.root)
-        btn_row.pack(fill="x", padx=10)
+        btn_row.pack(fill="x", padx=10, pady=(0, 10))
         tk.Button(btn_row, text="Add Watchdog", command=self.add_watchdog).pack(side="left")
         tk.Button(btn_row, text="Retrain", command=self.edit_watchdog).pack(side="left", padx=6)
         self.toggle_btn = tk.Button(btn_row, text="Put Dog on Watch", command=self.toggle_watchdog)
@@ -684,18 +691,8 @@ class ConfigWindow:
             self._tick_status()
 
         tk.Button(btn_row, text="Rehome Dog", command=self.delete_watchdog).pack(side="left", padx=6)
-
-        # Deliberate two-section look: a thin separator line between the
-        # per-watchdog row and the whole-window row, colored to stay visible
-        # in both palettes (recolored after apply_theme below, which would
-        # otherwise repaint every Frame to the window background).
-        self._row_separator = tk.Frame(self.root, height=1, bd=0, highlightthickness=0)
-        self._row_separator.pack(fill="x", padx=10, pady=(3, 6))
-
-        window_row = tk.Frame(self.root)
-        window_row.pack(fill="x", padx=10, pady=(0, 10))
-        tk.Button(window_row, text="Hide Dogs in the Doghouse", command=self.hide).pack(side="right")
-        tk.Button(window_row, text="Trainer's Guide", command=self.open_guide).pack(side="right", padx=(0, 6))
+        tk.Button(btn_row, text="Hide Dogs in the Doghouse", command=self.hide).pack(side="right")
+        tk.Button(btn_row, text="Trainer's Guide", command=self.open_guide).pack(side="right", padx=(0, 6))
 
         self.tree.bind("<<TreeviewSelect>>", lambda e: self._update_toggle_label())
         self.tree.bind("<Double-1>", lambda e: self._show_result_details())
@@ -705,14 +702,10 @@ class ConfigWindow:
 
         self._palette = _build_palette()
         apply_theme(self.root, self._palette)
-        # apply_theme repaints every Frame to the window bg; recolor the
-        # separator AFTER it so the divider stays visible in both themes.
-        self._row_separator.config(bg=_blend(self._palette["bg"], self._palette["fg"], 0.25))
 
     def show(self):
         self._palette = _build_palette()
         apply_theme(self.root, self._palette)
-        self._row_separator.config(bg=_blend(self._palette["bg"], self._palette["fg"], 0.25))
         self.root.deiconify()
         self.root.lift()
         self.refresh_tree()
@@ -744,37 +737,23 @@ class ConfigWindow:
         self._pack_status.set(f"{enabled} of {total} watchdogs on watch")
 
     def _tick_status(self):
-        """Runs every second: updates the Status column with a live state for
-        each watchdog. Precedence: disabled, then a pending kill countdown,
-        then currently-open (blocking), then a stored post-feed result, then
-        the pre-feeding default. A fresh open event retires the stored result
-        (the result stays visible until the watched app is observed open)."""
+        """Update the filename-free four-state Dog Status column."""
         pending = self.watcher.get_pending() if self.watcher else {}
         opens = self.watcher.get_open() if self.watcher else {}
         for watchdog in self.cfg["watchdogs"]:
             rid = watchdog["id"]
             if not self.tree.exists(rid):
                 continue
-            if watchdog.get("watched_app") is None:
-                # Deliberately first, ahead of disabled/pending/open: a dog
-                # that can never watch anything must not be mistaken for a
-                # correctly-configured, currently-idle one.
-                status = "Needs setup — pick a Watch app in Retrain."
-            elif not watchdog.get("enabled", True):
-                status = "Off watch."
-            elif rid in pending:
-                status = f"Hungry \u2014 eating in {int(pending[rid]) + 1}s."
+            if watchdog.get("watched_app") is None or watchdog.get("dog_sick", False):
+                status = "ALERT! Dog is sick"
             else:
                 open_names = opens.get(rid, [])
                 if open_names:
-                    self._last_result.pop(rid, None)
-                    shown = ", ".join(open_names[:2])
-                    extra = "" if len(open_names) <= 2 else f" +{len(open_names) - 2}"
-                    status = f"Waiting to eat: {shown}{extra}."
-                elif rid in self._last_result:
-                    status = self._render_result(self._last_result[rid])
+                    status = "Waiting to eat"
+                elif rid in pending or watchdog.get("has_had_first_bite", False):
+                    status = "Eaten"
                 else:
-                    status = "Waiting for app to open."
+                    status = "Waiting for 1st bite"
             vals = list(self.tree.item(rid, "values"))
             if len(vals) == 3 and vals[2] != status:
                 vals[2] = status
@@ -806,12 +785,29 @@ class ConfigWindow:
 
     def record_kill_result(self, rid, watchdog_name, killed, failed):
         """Store the latest feeding outcome for a watchdog (called from the
-        Tkinter thread via root.after marshal from main). In-memory only."""
+        Tkinter thread via root.after marshal from main)."""
         self._last_result[rid] = {
             "name": watchdog_name,
             "killed": list(killed),
             "failed": list(failed),
         }
+        for watchdog in self.cfg["watchdogs"]:
+            if watchdog["id"] == rid:
+                watchdog["has_had_first_bite"] = True
+                watchdog["dog_sick"] = bool(failed)
+                watchdog["last_error"] = list(failed)
+                save_config(self.cfg)
+                self.on_change(self.cfg)
+                break
+
+    def record_app_closed(self, rid):
+        """Persist the first observed open-to-closed transition immediately."""
+        for watchdog in self.cfg["watchdogs"]:
+            if watchdog["id"] == rid and not watchdog.get("has_had_first_bite", False):
+                watchdog["has_had_first_bite"] = True
+                save_config(self.cfg)
+                self.on_change(self.cfg)
+                break
 
     def _show_result_details(self):
         watchdog = self._selected_watchdog()
@@ -819,6 +815,12 @@ class ConfigWindow:
             return
         rid = watchdog["id"]
         result = self._last_result.get(rid)
+        if not result and watchdog.get("dog_sick", False):
+            result = {
+                "name": watchdog.get("name", "watchdog"),
+                "killed": [],
+                "failed": list(watchdog.get("last_error", [])),
+            }
         if not result:
             return
         killed = result.get("killed", [])
@@ -870,6 +872,9 @@ class ConfigWindow:
         if dlg.result:
             dlg.result["id"] = watchdog["id"]
             dlg.result["enabled"] = watchdog.get("enabled", True)
+            dlg.result["has_had_first_bite"] = watchdog.get("has_had_first_bite", False)
+            dlg.result["dog_sick"] = watchdog.get("dog_sick", False)
+            dlg.result["last_error"] = list(watchdog.get("last_error", []))
             self.cfg["watchdogs"] = [dlg.result if r["id"] == watchdog["id"] else r for r in self.cfg["watchdogs"]]
             save_config(self.cfg)
             self.on_change(self.cfg)

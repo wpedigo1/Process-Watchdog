@@ -116,12 +116,14 @@ class MainWindowButtonsVisibleTests(unittest.TestCase):
             win.root.destroy()
 
 
-class NeedsSetupStatusTests(unittest.TestCase):
-    """Defect C: watched_app None shows an explicit, actionable status that
-    takes precedence over disabled/pending/open."""
+class DogStatusContractTests(unittest.TestCase):
+    """Dog Status is one of four filename-free lifecycle states."""
 
     RID = "needs-setup-dog"
-    MSG = "Needs setup \u2014 pick a Watch app in Retrain."
+    FIRST = "Waiting for 1st bite"
+    OPEN = "Waiting to eat"
+    EATEN = "Eaten"
+    SICK = "ALERT! Dog is sick"
 
     class _FakeWatcher:
         def __init__(self, pending=None, open_names=None):
@@ -134,10 +136,13 @@ class NeedsSetupStatusTests(unittest.TestCase):
         def get_open(self):
             return dict(self._open)
 
-    def _status_for(self, watched_app, enabled=True, pending=None, open_names=None):
+    def _status_for(self, watched_app, enabled=True, pending=None, open_names=None,
+                    first_bite=False, sick=False):
         cfg = {"poll_interval": 2.0, "grace_seconds": 10.0, "watchdogs": [
             {"id": self.RID, "name": "NS Dog", "enabled": enabled,
-             "watched_app": watched_app, "meal_targets": []},
+             "watched_app": watched_app, "meal_targets": [],
+             "has_had_first_bite": first_bite, "dog_sick": sick,
+             "last_error": []},
         ]}
         win = watchdog_ui.ConfigWindow(
             cfg, on_change=lambda c: None,
@@ -151,27 +156,39 @@ class NeedsSetupStatusTests(unittest.TestCase):
         finally:
             win.root.destroy()
 
-    def test_none_watched_app_shows_needs_setup(self):
-        self.assertEqual(self._status_for(None), self.MSG)
+    def test_unconfigured_watchdog_is_sick(self):
+        self.assertEqual(self._status_for(None), self.SICK)
 
-    def test_none_watched_app_takes_precedence_over_disabled(self):
-        self.assertEqual(self._status_for(None, enabled=False), self.MSG)
-
-    def test_none_watched_app_takes_precedence_over_pending(self):
-        self.assertEqual(
-            self._status_for(None, pending={self.RID: 3.0}), self.MSG)
-
-    def test_none_watched_app_takes_precedence_over_open(self):
-        self.assertEqual(
-            self._status_for(None, open_names={self.RID: ["app.exe"]}), self.MSG)
-
-    def test_other_statuses_unchanged(self):
+    def test_sick_alert_has_highest_priority(self):
         app = {"name": "app.exe", "exe": ""}
-        self.assertEqual(self._status_for(app, enabled=False), "Off watch.")
         self.assertEqual(
-            self._status_for(app, pending={self.RID: 3.0}),
-            "Hungry \u2014 eating in 4s.")
-        self.assertEqual(self._status_for(app), "Waiting for app to open.")
+            self._status_for(app, pending={self.RID: 3.0},
+                             open_names={self.RID: ["app.exe"]}, sick=True),
+            self.SICK)
+
+    def test_closed_before_first_bite_uses_first_state(self):
+        app = {"name": "app.exe", "exe": ""}
+        self.assertEqual(self._status_for(app), self.FIRST)
+
+    def test_open_app_uses_waiting_to_eat_without_filename(self):
+        app = {"name": "app.exe", "exe": ""}
+        self.assertEqual(
+            self._status_for(app, open_names={self.RID: ["app.exe"]}),
+            self.OPEN)
+
+    def test_pending_feed_is_eaten(self):
+        app = {"name": "app.exe", "exe": ""}
+        self.assertEqual(
+            self._status_for(app, pending={self.RID: 3.0}), self.EATEN)
+
+    def test_closed_after_first_bite_is_eaten(self):
+        app = {"name": "app.exe", "exe": ""}
+        self.assertEqual(self._status_for(app, first_bite=True), self.EATEN)
+
+    def test_disabled_dog_keeps_its_lifecycle_status(self):
+        app = {"name": "app.exe", "exe": ""}
+        self.assertEqual(
+            self._status_for(app, enabled=False, first_bite=True), self.EATEN)
 
 
 class SpinboxThemeTests(unittest.TestCase):
@@ -271,12 +288,10 @@ class TextThemeTests(unittest.TestCase):
             self.assertEqual(got["insertbackground"], pal["fg"], name)
 
 
-class ButtonRowSeparatorTests(unittest.TestCase):
-    """Mission 8 defect H: the two button rows must read as two intentional
-    sections — a separator frame exists between them and is visibly distinct
-    from the window background after theming."""
+class MainWindowLayoutContractTests(unittest.TestCase):
+    """All actions share one row and the Watchdog table can scroll."""
 
-    def test_separator_present_and_distinct(self):
+    def test_all_six_buttons_share_one_row(self):
         cfg = {"poll_interval": 2.0, "grace_seconds": 10.0, "watchdogs": []}
         watcher = watchdog_core.Watcher(get_config=lambda: cfg)
         win = watchdog_ui.ConfigWindow(cfg, on_change=lambda c: None, watcher=watcher)
@@ -284,28 +299,54 @@ class ButtonRowSeparatorTests(unittest.TestCase):
             win.show()
             win.root.update_idletasks()
             win.root.update()
-            sep = win._row_separator
-            self.assertEqual(int(sep.cget("height")), 1)
-            palette = win._palette
-            self.assertNotEqual(sep.cget("bg").lower(), palette["bg"].lower())
-            self.assertEqual(sep.cget("bg").upper(),
-                             watchdog_ui._blend(palette["bg"], palette["fg"], 0.25).upper())
-            # geometric: the separator sits BETWEEN the two button rows
-            ys = {}
+            ys = []
+            expected = {"Add Watchdog", "Retrain", "Put Dog on Watch",
+                        "Rehome Dog", "Trainer's Guide",
+                        "Hide Dogs in the Doghouse"}
             for w in all_descendants(win.root):
                 if w.__class__.__name__ == "Button" and w.winfo_toplevel() is win.root:
-                    ys.setdefault(w.cget("text"), w.winfo_rooty())
-            sep_y = sep.winfo_rooty()
-            self.assertLess(ys["Rehome Dog"], sep_y, "separator must be below management row")
-            self.assertLess(sep_y, ys["Trainer's Guide"], "separator must be above window row")
+                    if w.cget("text") in expected:
+                        ys.append(w.winfo_rooty())
+            self.assertEqual(len(ys), 6)
+            self.assertEqual(len(set(ys)), 1, ys)
         finally:
             win.root.destroy()
 
-    def test_blend_helper(self):
-        self.assertEqual(watchdog_ui._blend("#202020", "#202020", 0.5), "#202020")
-        self.assertEqual(watchdog_ui._blend("#000000", "#FFFFFF", 0.5), "#808080")
-        self.assertEqual(watchdog_ui._blend("#000000", "#FFFFFF", 0.0), "#000000")
-        self.assertEqual(watchdog_ui._blend("#000000", "#FFFFFF", 1.0), "#FFFFFF")
+    def test_main_window_is_wide_enough_for_one_row(self):
+        cfg = {"poll_interval": 2.0, "grace_seconds": 10.0, "watchdogs": []}
+        win = watchdog_ui.ConfigWindow(
+            cfg, on_change=lambda c: None,
+            watcher=watchdog_core.Watcher(get_config=lambda: cfg))
+        try:
+            self.assertGreaterEqual(win.root.minsize()[0], 1000)
+        finally:
+            win.root.destroy()
+
+    def test_watchdog_table_has_vertical_scrollbar(self):
+        cfg = {"poll_interval": 2.0, "grace_seconds": 10.0, "watchdogs": []}
+        win = watchdog_ui.ConfigWindow(
+            cfg, on_change=lambda c: None,
+            watcher=watchdog_core.Watcher(get_config=lambda: cfg))
+        try:
+            self.assertTrue(win.tree.cget("yscrollcommand"))
+            self.assertEqual(str(win.tree_scrollbar.cget("orient")), "vertical")
+        finally:
+            win.root.destroy()
+
+    def test_table_keeps_more_than_eleven_watchdogs(self):
+        cfg = {"poll_interval": 2.0, "grace_seconds": 10.0, "watchdogs": [
+            {"id": f"dog-{i}", "name": f"Dog {i}", "enabled": True,
+             "watched_app": {"name": f"app-{i}.exe", "exe": ""},
+             "meal_targets": []}
+            for i in range(15)
+        ]}
+        win = watchdog_ui.ConfigWindow(
+            cfg, on_change=lambda c: None,
+            watcher=watchdog_core.Watcher(get_config=lambda: cfg))
+        try:
+            self.assertEqual(len(win.tree.get_children()), 15)
+        finally:
+            win.root.destroy()
 
 
 class GroupLabelTests(unittest.TestCase):

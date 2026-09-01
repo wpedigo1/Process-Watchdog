@@ -14,10 +14,12 @@ Build to a Windows .exe with PyInstaller (see build.bat).
 """
 
 import os
+import subprocess
 import sys
 import time
 import threading
 import traceback
+import xml.etree.ElementTree as ET
 
 try:
     import pystray
@@ -34,6 +36,21 @@ from watchdog_core import (
     resource_path,
 )
 from watchdog_ui import ConfigWindow
+
+
+STARTUP_TASK_NAME = APP_NAME
+_CREATE_NO_WINDOW = 0x08000000
+
+
+def _run_schtasks(arguments):
+    return subprocess.run(
+        ["schtasks.exe", *arguments],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        creationflags=_CREATE_NO_WINDOW,
+    )
 
 
 def make_icon_image():
@@ -68,57 +85,98 @@ def log_crash(text):
 
 
 def is_startup_registered():
-    """Checks the HKCU Run key directly rather than trusting a saved flag,
-    so the tray checkbox always reflects reality even if the registry was
-    edited/cleared outside the app (e.g. by antivirus)."""
+    """Check the current-user elevated logon task against this executable."""
     if os.name != "nt" or not getattr(sys, "frozen", False):
         return False
     try:
-        import winreg
-        key = winreg.OpenKey(
-            winreg.HKEY_CURRENT_USER,
-            r"Software\Microsoft\Windows\CurrentVersion\Run",
-            0, winreg.KEY_READ
-        )
-        try:
-            current, _ = winreg.QueryValueEx(key, APP_NAME)
-        except FileNotFoundError:
-            current = None
-        winreg.CloseKey(key)
-        return current == sys.executable
+        result = _run_schtasks(["/Query", "/TN", STARTUP_TASK_NAME, "/XML"])
+        if result.returncode != 0:
+            return False
+        command = ET.fromstring(result.stdout).find(".//{*}Command")
+        if command is None or not command.text:
+            return False
+        configured = os.path.normcase(os.path.abspath(command.text.strip().strip('"')))
+        current = os.path.normcase(os.path.abspath(sys.executable))
+        return configured == current
     except Exception:
         return False
 
 
 def set_startup_registered(enabled):
-    """User-triggered only (tray menu toggle) — NOT called automatically
-    on launch. An unsigned exe silently writing itself into the Windows
-    startup registry the moment it first runs is a classic antivirus
-    false-positive trigger; making this opt-in avoids that entirely."""
+    """Create/delete the opt-in, highest-privilege current-user logon task."""
     if os.name != "nt" or not getattr(sys, "frozen", False):
-        return
+        return False
+    try:
+        if enabled:
+            result = _run_schtasks([
+                "/Create", "/TN", STARTUP_TASK_NAME,
+                "/SC", "ONLOGON", "/RL", "HIGHEST",
+                "/TR", f'"{sys.executable}"', "/F",
+            ])
+        else:
+            result = _run_schtasks(["/Delete", "/TN", STARTUP_TASK_NAME, "/F"])
+        return result.returncode == 0
+    except Exception:
+        return False
+
+
+def _read_legacy_startup():
     try:
         import winreg
         key = winreg.OpenKey(
             winreg.HKEY_CURRENT_USER,
             r"Software\Microsoft\Windows\CurrentVersion\Run",
-            0, winreg.KEY_SET_VALUE
+            0, winreg.KEY_READ,
         )
-        if enabled:
-            winreg.SetValueEx(key, APP_NAME, 0, winreg.REG_SZ, sys.executable)
-        else:
-            try:
-                winreg.DeleteValue(key, APP_NAME)
-            except FileNotFoundError:
-                pass
-        winreg.CloseKey(key)
+        try:
+            value, _ = winreg.QueryValueEx(key, APP_NAME)
+            return value
+        except FileNotFoundError:
+            return None
+        finally:
+            winreg.CloseKey(key)
     except Exception:
-        pass
+        return None
+
+
+def _delete_legacy_startup():
+    import winreg
+    key = winreg.OpenKey(
+        winreg.HKEY_CURRENT_USER,
+        r"Software\Microsoft\Windows\CurrentVersion\Run",
+        0, winreg.KEY_SET_VALUE,
+    )
+    try:
+        try:
+            winreg.DeleteValue(key, APP_NAME)
+        except FileNotFoundError:
+            pass
+    finally:
+        winreg.CloseKey(key)
+
+
+def migrate_legacy_startup():
+    """Preserve an opted-in legacy Run entry while moving it to Task Scheduler."""
+    if os.name != "nt" or not getattr(sys, "frozen", False):
+        return False
+    legacy = _read_legacy_startup()
+    if not legacy:
+        return False
+    legacy_path = os.path.normcase(os.path.abspath(str(legacy).strip().strip('"')))
+    current_path = os.path.normcase(os.path.abspath(sys.executable))
+    if legacy_path != current_path or not set_startup_registered(True):
+        return False
+    try:
+        _delete_legacy_startup()
+    except Exception:
+        return False
+    return True
 
 
 def main():
     is_first_run = not os.path.exists(CONFIG_PATH)
     cfg = load_config()
+    migrate_legacy_startup()
 
     def on_kill(rid, watchdog_name, killed, failed):
         # Fires on the watcher's background thread; marshal all UI-adjacent
@@ -126,7 +184,14 @@ def main():
         config_window.root.after(0, config_window.record_kill_result,
                                  rid, watchdog_name, killed, failed)
 
-    watcher = Watcher(get_config=lambda: config_window.cfg, on_kill=on_kill)
+    def on_close(rid):
+        config_window.root.after(0, config_window.record_app_closed, rid)
+
+    watcher = Watcher(
+        get_config=lambda: config_window.cfg,
+        on_kill=on_kill,
+        on_close=on_close,
+    )
     config_window = ConfigWindow(cfg, on_change=lambda c: None, watcher=watcher)
     watcher.start()
 

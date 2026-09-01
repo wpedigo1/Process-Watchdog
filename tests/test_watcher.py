@@ -64,6 +64,34 @@ class WatcherLoopTests(unittest.TestCase):
         )
         mock_kill.assert_called_once_with([{"name": "app.exe", "exe": ""}], detail=True)
 
+    def test_open_to_closed_reports_first_bite_before_grace_elapses(self):
+        watchdog = _make_watchdog()
+        cfg = {"poll_interval": 1.0, "grace_seconds": 60.0, "watchdogs": [watchdog]}
+        closed = []
+        watcher = watchdog_app.Watcher(
+            get_config=lambda: cfg,
+            on_close=lambda rid: closed.append(rid),
+        )
+        state = {"iter": 0, "t": 1000.0}
+
+        def fake_open(_trigger):
+            return [["app.exe"], []][min(state["iter"], 1)]
+
+        def fake_sleep(_secs):
+            state["iter"] += 1
+            state["t"] += 1.0
+            if state["iter"] >= 2:
+                watcher.stop()
+
+        with patch.object(watchdog_app, "open_trigger_names", side_effect=fake_open), \
+             patch.object(watchdog_app, "kill_processes") as mock_kill, \
+             patch.object(watchdog_app.time, "sleep", side_effect=fake_sleep), \
+             patch.object(watchdog_app.time, "time", side_effect=lambda: state["t"]):
+            watcher.run()
+
+        self.assertEqual(closed, ["wd1"])
+        mock_kill.assert_not_called()
+
     def test_kill_called_with_detail_true(self):
         # Criterion 6: Watcher.run calls kill_processes with detail=True.
         watcher, mock_kill = self._drive(

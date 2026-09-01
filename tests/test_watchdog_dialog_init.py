@@ -127,6 +127,9 @@ class WatchDesignationTests(unittest.TestCase):
         self.assertEqual(
             sorted(m["name"] for m in result["meal_targets"]),
             ["app_a.exe", "app_c.exe"])
+        self.assertFalse(result["has_had_first_bite"])
+        self.assertFalse(result["dog_sick"])
+        self.assertEqual(result["last_error"], [])
 
     def test_deselecting_watched_falls_back_to_first_remaining(self):
         self._add("app_a.exe")

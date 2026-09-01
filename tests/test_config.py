@@ -85,6 +85,9 @@ class LoadConfigTests(unittest.TestCase):
         wd = loaded["watchdogs"][0]
         self.assertEqual(wd["watched_app"], {"name": "app.exe", "exe": ""})
         self.assertEqual(wd["meal_targets"], [{"name": "helper.exe", "exe": ""}])
+        self.assertIs(wd.get("has_had_first_bite"), False)
+        self.assertIs(wd.get("dog_sick"), False)
+        self.assertEqual(wd.get("last_error"), [])
         self.assertNotIn("trigger", wd)
         self.assertNotIn("kill", wd)
 
@@ -125,11 +128,15 @@ class SaveLoadRoundTripTests(unittest.TestCase):
                     "id": "wd-1", "name": "First", "enabled": True,
                     "watched_app": {"name": "a.exe", "exe": r"C:\Apps\A\a.exe"},
                     "meal_targets": [{"name": "helper.exe", "exe": r"C:\Apps\A\helper.exe"}],
+                    "has_had_first_bite": True, "dog_sick": True,
+                    "last_error": ["helper.exe"],
                 },
                 {
                     "id": "wd-2", "name": "Second", "enabled": False,
                     "watched_app": {"name": "b.exe", "exe": ""},
                     "meal_targets": [],
+                    "has_had_first_bite": False, "dog_sick": False,
+                    "last_error": [],
                 },
             ],
         }

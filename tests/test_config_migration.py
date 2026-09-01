@@ -49,6 +49,9 @@ class LoadConfigMigrationTests(unittest.TestCase):
                             "exe": r"C:\Apps\Legacy\helper.exe",
                         }
                     ],
+                    "has_had_first_bite": False,
+                    "dog_sick": False,
+                    "last_error": [],
                 }
             ],
         )

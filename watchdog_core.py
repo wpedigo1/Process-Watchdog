@@ -254,6 +254,9 @@ def _migrate_watchdog(watchdog):
             akey = _entry_key(app)
             meal = [e for e in meal if _entry_key(e) != akey]
         watchdog["meal_targets"] = _dedupe_entries(meal)
+        watchdog.setdefault("has_had_first_bite", False)
+        watchdog.setdefault("dog_sick", False)
+        watchdog.setdefault("last_error", [])
         return
 
     trigger = watchdog.get("trigger", [])
@@ -272,6 +275,9 @@ def _migrate_watchdog(watchdog):
 
     watchdog["watched_app"] = app
     watchdog["meal_targets"] = meal
+    watchdog.setdefault("has_had_first_bite", False)
+    watchdog.setdefault("dog_sick", False)
+    watchdog.setdefault("last_error", [])
     watchdog.pop("trigger", None)
     watchdog.pop("kill", None)
 
@@ -453,10 +459,11 @@ def kill_processes(entries, detail=False):
 # ---------------------------------------------------------------------------
 
 class Watcher(threading.Thread):
-    def __init__(self, get_config, on_kill=None):
+    def __init__(self, get_config, on_kill=None, on_close=None):
         super().__init__(daemon=True)
         self.get_config = get_config
         self.on_kill = on_kill
+        self.on_close = on_close
         self._stop = threading.Event()
         self._was_running = {}  # watchdog_id -> bool
         self._pending_kill_at = {}  # watchdog_id -> timestamp
@@ -487,6 +494,8 @@ class Watcher(threading.Thread):
                 if was_running and not running_now:
                     # Just closed -> schedule a kill after grace period
                     self._pending_kill_at[rid] = now + grace
+                    if self.on_close:
+                        self.on_close(rid)
                 elif running_now:
                     # Reopened before grace expired -> cancel pending kill
                     self._pending_kill_at.pop(rid, None)
