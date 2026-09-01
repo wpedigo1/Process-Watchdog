@@ -157,13 +157,12 @@ class ProcessPicker(tk.Frame):
     Save never silently drops it."""
 
     def __init__(self, master, initial=None, selectmode="extended", hint=None,
-                 locked=None, on_select=None):
+                 on_select=None):
         super().__init__(master)
         self._preselect = {(e.get("name", ""), e.get("exe", "") or "") for e in (initial or [])}
         self._leaf_ident = {}  # iid -> (name, exe)
         self._manual = set()   # manually added (name, exe) identities kept across refreshes
-        self._locked = locked  # display-only (name, exe) shown disabled, never selectable
-        self._on_select = on_select
+        self._on_select = None  # set to the real callback after the first refresh
 
         top = tk.Frame(self)
         top.pack(fill="x")
@@ -187,23 +186,19 @@ class ProcessPicker(tk.Frame):
         tree_row.pack(fill="both", expand=True, pady=(4, 0))
 
         self.tree = ttk.Treeview(tree_row, show="tree", selectmode=selectmode)
-        self.tree.tag_configure("locked", foreground="#888888")
         vsb = ttk.Scrollbar(tree_row, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=vsb.set)
         self.tree.pack(side="left", fill="both", expand=True)
         vsb.pack(side="right", fill="y")
 
-        if self._on_select:
-            self.tree.bind("<<TreeviewSelect>>", lambda e: self._on_select())
+        # Always bind; the callback itself is installed after the initial
+        # refresh (see below), and the lambda guards against it being None.
+        self.tree.bind("<<TreeviewSelect>>", lambda e: self._on_select and self._on_select())
 
         self.refresh()
-
-    def set_locked(self, name, exe=""):
-        """Show a disabled, always-present entry for the watched app. Used to
-        keep the watched app visible in the Eat These Leftovers list while
-        keeping it out of the leftover selection itself."""
-        self._locked = (name, exe) if name else None
-        self.refresh()
+        # Set the callback only AFTER the constructor's initial refresh so
+        # that refresh's own notification can't fire into a half-built owner.
+        self._on_select = on_select
 
     def add_manual(self, name, exe=""):
         if not name:
@@ -234,12 +229,6 @@ class ProcessPicker(tk.Frame):
         self.tree.delete(*self.tree.get_children())
         self._leaf_ident = {}
         live_idents = set()
-
-        if self._locked:
-            n, e = self._locked
-            self.tree.insert("", tk.END, text=f"{n}  \u2014 watched app (always eaten)",
-                             tags=("locked",))
-            live_idents.add((n, e))
 
         query = self.filter_var.get().strip().lower()
         groups = get_process_groups(hide_system=True)
@@ -283,6 +272,11 @@ class ProcessPicker(tk.Frame):
                 if parent:
                     self.tree.item(parent, open=True)
         self._preselect = set()
+        # Programmatic selection changes don't emit <<TreeviewSelect>> on
+        # their own; notify on_select so watchers of the selection (e.g. the
+        # dialog's watch-designation combobox) stay in sync after refreshes.
+        if self._on_select and to_select:
+            self.tree.event_generate("<<TreeviewSelect>>")
 
     def get_selected(self):
         idents = self._current_identities()
@@ -345,7 +339,6 @@ class watchdogDialog(tk.Toplevel):
 
         existing_app = watchdog.get("watched_app")
         existing_meal = watchdog.get("meal_targets", [])
-        existing_app_ident = (existing_app.get("name", ""), existing_app.get("exe", "") or "") if existing_app else None
 
         self.title(f"Retrain {watchdog.get('name', '')}".strip()
                    if watchdog.get("name") else "Train a Watchdog")
@@ -355,47 +348,29 @@ class watchdogDialog(tk.Toplevel):
         self.name_entry.insert(0, watchdog.get("name", ""))
         self.name_entry.pack(fill="x", padx=8)
 
-        # --- Watch This App (single-select) ---
-        tk.Label(body, text="Watch this app", font=("Segoe UI", 10, "bold")).pack(
+        # --- One multi-select list: everything that should be involved ---
+        tk.Label(body, text="Watch these apps", font=("Segoe UI", 10, "bold")).pack(
             anchor="w", padx=8, pady=(8, 0))
         tk.Label(
             body,
-            text="Pick the ONE app to watch. Its window closing is what triggers cleanup.",
+            text="Select the app whose closing should trigger cleanup, plus any "
+                 "leftover processes to eat alongside it.",
             fg="gray", wraplength=460, justify="left"
         ).pack(anchor="w", padx=8)
-        self.watch_picker = ProcessPicker(
-            body, initial=[existing_app] if existing_app else None,
-            selectmode="browse",
-            hint="Pick one app from the list to watch. Its matching is by exact install location.",
-            on_select=self._watch_changed,
-        )
-        self.watch_picker.pack(fill="x", padx=8, pady=(4, 0))
-
-        watch_add_row = tk.Frame(body)
-        watch_add_row.pack(fill="x", padx=8, pady=(4, 0))
-        tk.Button(watch_add_row, text="Browse for .exe\u2026",
-                  command=self._browse_watch_exe).pack(side="left")
-        self.watch_manual_var = tk.StringVar()
-        watch_manual_entry = tk.Entry(watch_add_row, textvariable=self.watch_manual_var)
-        watch_manual_entry.pack(side="left", fill="x", expand=True, padx=(6, 0))
-        watch_manual_entry.bind("<Return>", lambda e: self._add_watch_manual())
-        tk.Button(watch_add_row, text="Add filename",
-                  command=self._add_watch_manual).pack(side="left", padx=(6, 0))
-
-        # --- Eat These Leftovers (multi-select, locked watched app) ---
-        tk.Label(body, text="Eat these leftovers", font=("Segoe UI", 10, "bold")).pack(
-            anchor="w", padx=8, pady=(8, 0))
-        tk.Label(
+        self.picker = ProcessPicker(
             body,
-            text="Extra processes to force-kill when the watched app closes "
-                 "(the watched app itself is always eaten, shown below as locked).",
-            fg="gray", wraplength=460, justify="left"
-        ).pack(anchor="w", padx=8)
-        self.meal_picker = ProcessPicker(
-            body, initial=existing_meal, locked=existing_app_ident,
-            hint="Ctrl/Shift-click to combine as many leftovers as you want.",
+            initial=([existing_app] if existing_app else []) + existing_meal,
+            selectmode="extended",
+            hint="Ctrl/Shift-click to combine as many as you want.",
+            on_select=self._sync_watch_combo,
         )
-        self.meal_picker.pack(fill="x", padx=8, pady=(4, 0))
+        self.picker.pack(fill="x", padx=8, pady=(4, 0))
+
+        tk.Label(body, text="Closes and triggers cleanup:").pack(anchor="w", padx=8, pady=(6, 0))
+        self.watch_combo = ttk.Combobox(body, state="readonly")
+        self.watch_combo.pack(fill="x", padx=8, pady=(2, 0))
+        self._watch_desired = existing_app.get("name", "") if existing_app else ""
+        self._sync_watch_combo()
 
         add_row = tk.Frame(body)
         add_row.pack(fill="x", padx=8, pady=(4, 0))
@@ -406,9 +381,10 @@ class watchdogDialog(tk.Toplevel):
         manual_entry.bind("<Return>", lambda e: self._add_manual())
         tk.Button(add_row, text="Add filename", command=self._add_manual).pack(side="left", padx=(6, 0))
 
-        note = ("The watched app is matched by exact install location, so picking an app "
-                "like \u201cfoo.exe\u201d won't accidentally also match another app that "
-                "shares its name. Leftovers added by filename only are matched by name.")
+        note = ("Every selected app is eaten when the designated one closes. Matching is "
+                "by exact install location, so picking an app like \u201cfoo.exe\u201d won't "
+                "accidentally also match another app that shares its name. Entries added by "
+                "filename only are matched by name.")
         tk.Label(body, text=note, fg="#666", wraplength=460, justify="left").pack(
             anchor="w", padx=8, pady=(6, 0))
 
@@ -418,12 +394,21 @@ class watchdogDialog(tk.Toplevel):
         self._palette = _build_palette()
         apply_theme(self, self._palette)
 
-    def _watch_changed(self):
-        """Reflect the chosen watched app into the leftovers list as a locked,
-        always-eaten entry."""
-        app = self.watch_picker.get_selected()
-        if app:
-            self.meal_picker.set_locked(app[0]["name"], app[0]["exe"] or "")
+    def _sync_watch_combo(self):
+        """Keep the watch-designation combobox in step with the picker's
+        current selection: values are the selected names; the current choice
+        is kept when still valid, otherwise the preferred (previously saved)
+        name, otherwise the first selected name. Empty selection disables it."""
+        selected = self.picker.get_selected()
+        names = [s["name"] for s in selected]
+        self.watch_combo.configure(values=names)
+        if not names:
+            self.watch_combo.set("")
+            self.watch_combo.configure(state="disabled")
+            return
+        desired = self.watch_combo.get() or self._watch_desired
+        self.watch_combo.set(desired if desired in names else names[0])
+        self.watch_combo.configure(state="readonly")
 
     def _identity(self, entry):
         return ((entry.get("name") or "").lower(), (entry.get("exe") or "").lower())
@@ -452,49 +437,35 @@ class watchdogDialog(tk.Toplevel):
 
     def _browse_exe(self):
         path = filedialog.askopenfilename(
-            parent=self, title="Choose an executable to add to leftovers",
+            parent=self, title="Choose an executable to add",
             filetypes=[("Executable files", "*.exe"), ("All files", "*.*")],
         )
         if path and not self._guard_protected(os.path.basename(path), path):
-            self.meal_picker.add_manual(os.path.basename(path), path)
+            self.picker.add_manual(os.path.basename(path), path)
 
     def _add_manual(self):
         name = self.manual_var.get().strip()
         if not name:
             return
         if not self._guard_protected(name, ""):
-            self.meal_picker.add_manual(name, "")
+            self.picker.add_manual(name, "")
         self.manual_var.set("")
-
-    def _browse_watch_exe(self):
-        path = filedialog.askopenfilename(
-            parent=self, title="Choose an executable to watch",
-            filetypes=[("Executable files", "*.exe"), ("All files", "*.*")],
-        )
-        if path and not self._guard_protected(os.path.basename(path), path):
-            self.watch_picker.add_manual(os.path.basename(path), path)
-            self._watch_changed()
-
-    def _add_watch_manual(self):
-        name = self.watch_manual_var.get().strip()
-        if not name:
-            return
-        if not self._guard_protected(name, ""):
-            self.watch_picker.add_manual(name, "")
-            self._watch_changed()
-        self.watch_manual_var.set("")
 
     def _save(self):
         name = self.name_entry.get().strip()
         if not name:
             messagebox.showerror(APP_NAME, "Give the Watchdog a name.")
             return
-        watched = self.watch_picker.get_selected()
-        if not watched:
+        selected = self.picker.get_selected()
+        if not selected:
             messagebox.showerror(APP_NAME, "Pick an app to watch first.")
             return
-        watched_app = watched[0]
-        meal = self._dedupe(self.meal_picker.get_selected(), exclude=watched_app)
+        watched_name = self.watch_combo.get()
+        watched_app = next((s for s in selected if s["name"] == watched_name), None)
+        if watched_app is None:
+            messagebox.showerror(APP_NAME, "Pick which selected app should trigger cleanup.")
+            return
+        meal = self._dedupe(selected, exclude=watched_app)
         self.result = {
             "id": str(uuid.uuid4()),
             "name": name,
