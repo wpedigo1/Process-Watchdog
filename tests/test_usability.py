@@ -211,6 +211,103 @@ class SpinboxThemeTests(unittest.TestCase):
             self.assertEqual(got["spin_bg"], got["entry_bg"])
 
 
+class SpinboxButtonBackgroundTests(unittest.TestCase):
+    """Mission 8 defect G: the arrow area has its own Tk option,
+    buttonbackground, which Mission 7's fix did not set."""
+
+    def _spinbox_opts(self, palette):
+        root = watchdog_ui.tk.Tk()
+        root.withdraw()
+        try:
+            frame = watchdog_ui.tk.Frame(root)
+            spin = watchdog_ui.tk.Spinbox(frame, from_=1, to=10)
+            spin.pack()
+            frame.pack()
+            watchdog_ui.apply_theme(frame, dict(palette, accent="#0078D7"))
+            frame.update_idletasks()
+            return {"buttonbackground": spin.cget("buttonbackground"),
+                    "bg": spin.cget("bg"), "fg": spin.cget("fg")}
+        finally:
+            root.destroy()
+
+    def test_buttonbackground_set_for_both_palettes(self):
+        for name in ("dark", "light"):
+            pal = watchdog_ui._PALETTES[name]
+            got = self._spinbox_opts(pal)
+            self.assertEqual(got["buttonbackground"], pal["entry_bg"], name)
+
+
+class TextThemeTests(unittest.TestCase):
+    """Mission 8 defect F: tk.Text (Trainer's Guide body) was never in the
+    apply_theme dispatch, leaving black text on a darkened background."""
+
+    def _text_opts(self, palette):
+        root = watchdog_ui.tk.Tk()
+        root.withdraw()
+        try:
+            frame = watchdog_ui.tk.Frame(root)
+            txt = watchdog_ui.tk.Text(frame)
+            txt.pack()
+            frame.pack()
+            watchdog_ui.apply_theme(frame, dict(palette, accent="#0078D7"))
+            frame.update_idletasks()
+            return {"fg": txt.cget("fg"), "bg": txt.cget("bg"),
+                    "insertbackground": txt.cget("insertbackground")}
+        finally:
+            root.destroy()
+
+    def test_dark_theme_text_fg_is_white(self):
+        got = self._text_opts(watchdog_ui._PALETTES["dark"])
+        self.assertEqual(got["fg"], watchdog_ui._PALETTES["dark"]["fg"])
+
+    def test_light_theme_text_fg_is_black(self):
+        got = self._text_opts(watchdog_ui._PALETTES["light"])
+        self.assertEqual(got["fg"], watchdog_ui._PALETTES["light"]["fg"])
+
+    def test_insertbackground_matches_fg(self):
+        for name in ("dark", "light"):
+            pal = watchdog_ui._PALETTES[name]
+            got = self._text_opts(pal)
+            self.assertEqual(got["insertbackground"], pal["fg"], name)
+
+
+class ButtonRowSeparatorTests(unittest.TestCase):
+    """Mission 8 defect H: the two button rows must read as two intentional
+    sections — a separator frame exists between them and is visibly distinct
+    from the window background after theming."""
+
+    def test_separator_present_and_distinct(self):
+        cfg = {"poll_interval": 2.0, "grace_seconds": 10.0, "watchdogs": []}
+        watcher = watchdog_core.Watcher(get_config=lambda: cfg)
+        win = watchdog_ui.ConfigWindow(cfg, on_change=lambda c: None, watcher=watcher)
+        try:
+            win.show()
+            win.root.update_idletasks()
+            win.root.update()
+            sep = win._row_separator
+            self.assertEqual(int(sep.cget("height")), 1)
+            palette = win._palette
+            self.assertNotEqual(sep.cget("bg").lower(), palette["bg"].lower())
+            self.assertEqual(sep.cget("bg").upper(),
+                             watchdog_ui._blend(palette["bg"], palette["fg"], 0.25).upper())
+            # geometric: the separator sits BETWEEN the two button rows
+            ys = {}
+            for w in all_descendants(win.root):
+                if w.__class__.__name__ == "Button" and w.winfo_toplevel() is win.root:
+                    ys.setdefault(w.cget("text"), w.winfo_rooty())
+            sep_y = sep.winfo_rooty()
+            self.assertLess(ys["Rehome Dog"], sep_y, "separator must be below management row")
+            self.assertLess(sep_y, ys["Trainer's Guide"], "separator must be above window row")
+        finally:
+            win.root.destroy()
+
+    def test_blend_helper(self):
+        self.assertEqual(watchdog_ui._blend("#202020", "#202020", 0.5), "#202020")
+        self.assertEqual(watchdog_ui._blend("#000000", "#FFFFFF", 0.5), "#808080")
+        self.assertEqual(watchdog_ui._blend("#000000", "#FFFFFF", 0.0), "#000000")
+        self.assertEqual(watchdog_ui._blend("#000000", "#FFFFFF", 1.0), "#FFFFFF")
+
+
 class GroupLabelTests(unittest.TestCase):
     """Defect E: multi-exe group label is the SHORTEST exe name in the group,
     not the (often opaque MSIX hash) install-directory basename."""

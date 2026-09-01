@@ -39,6 +39,15 @@ _PALETTES = {
 }
 
 
+def _blend(hex_color_a, hex_color_b, t):
+    """Mix two #RRGGBB colors; t=0 returns a, t=1 returns b. Used for subtle
+    separators that must stay visible in both palettes without a new palette
+    entry or dependency."""
+    a = tuple(int(hex_color_a[i:i + 2], 16) for i in (1, 3, 5))
+    b = tuple(int(hex_color_b[i:i + 2], 16) for i in (1, 3, 5))
+    return "#%02X%02X%02X" % tuple(round(a[i] + (b[i] - a[i]) * t) for i in range(3))
+
+
 def _build_palette():
     pal = dict(_PALETTES[detect_windows_theme()])
     pal["accent"] = get_accent_color()
@@ -67,6 +76,10 @@ def apply_theme(widget, palette):
         elif cls == "Entry":
             child.config(bg=palette["entry_bg"], fg=palette["fg"], insertbackground=palette["fg"])
         elif cls == "Spinbox":
+            child.config(bg=palette["entry_bg"], fg=palette["fg"],
+                         insertbackground=palette["fg"],
+                         buttonbackground=palette["entry_bg"])
+        elif cls == "Text":
             child.config(bg=palette["entry_bg"], fg=palette["fg"], insertbackground=palette["fg"])
         elif isinstance(child, ttk.Treeview):
             style = ttk.Style()
@@ -701,8 +714,15 @@ class ConfigWindow:
 
         tk.Button(btn_row, text="Rehome Dog", command=self.delete_watchdog).pack(side="left", padx=6)
 
+        # Deliberate two-section look: a thin separator line between the
+        # per-watchdog row and the whole-window row, colored to stay visible
+        # in both palettes (recolored after apply_theme below, which would
+        # otherwise repaint every Frame to the window background).
+        self._row_separator = tk.Frame(self.root, height=1, bd=0, highlightthickness=0)
+        self._row_separator.pack(fill="x", padx=10, pady=(3, 6))
+
         window_row = tk.Frame(self.root)
-        window_row.pack(fill="x", padx=10, pady=(4, 10))
+        window_row.pack(fill="x", padx=10, pady=(0, 10))
         tk.Button(window_row, text="Hide Dogs in the Doghouse", command=self.hide).pack(side="right")
         tk.Button(window_row, text="Trainer's Guide", command=self.open_guide).pack(side="right", padx=(0, 6))
 
@@ -714,10 +734,14 @@ class ConfigWindow:
 
         self._palette = _build_palette()
         apply_theme(self.root, self._palette)
+        # apply_theme repaints every Frame to the window bg; recolor the
+        # separator AFTER it so the divider stays visible in both themes.
+        self._row_separator.config(bg=_blend(self._palette["bg"], self._palette["fg"], 0.25))
 
     def show(self):
         self._palette = _build_palette()
         apply_theme(self.root, self._palette)
+        self._row_separator.config(bg=_blend(self._palette["bg"], self._palette["fg"], 0.25))
         self.root.deiconify()
         self.root.lift()
         self.refresh_tree()
