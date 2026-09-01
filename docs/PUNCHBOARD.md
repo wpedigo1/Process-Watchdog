@@ -314,7 +314,7 @@ Final verification
 - Verify protected processes and Process Watchdog never appear. [PASS by Mission 6H — picker verified while a live same-exe different-pid sibling ran: zero self-exe entries (Mission 6G fix, the exact parent-bootloader shape); regression test covers the shape; packaged binary's own picker not introspectable from outside — stated]
 - Verify main X hides without exiting. [PASS by Missions 6D and 6H — real WM_DELETE_WINDOW path, animation, withdrawn, GetWindowRgn=0, process alive]
 - Verify doghouse button hides without exiting. [PASS by Missions 6D and 6H — real button command, same checks]
-- Verify tray Quit exits. [PARTIAL by Mission 6H — production quit-handler shape (watcher.stop + icon.stop + root.destroy) verified against a real pystray icon/Watcher/ConfigWindow: mainloop exits in 0.53s, watcher stop signal set, icon stopped; packaged instance closed via documented taskkill deviation with tasklist confirmation; the physical tray-menu click itself remains UNVERIFIED (not scriptable) and is the sole item keeping the Final acceptance gate unmet]
+- Verify tray Quit exits. [PASS by Missions 6H and 6I — production quit-handler shape (watcher.stop + icon.stop + root.destroy) verified against a real pystray icon/Watcher/ConfigWindow: mainloop exits in 0.53s, watcher stop signal set, icon stopped; the physical tray-menu click itself — the one action automation cannot perform — was confirmed by the repository owner directly, by hand (right-clicked the tray icon, clicked Quit, confirmed the process actually exited); recorded by Mission 6I]
 - Verify Start with Windows behavior. [PASS by Mission 6H for the decision logic — source-mode no-op guard verified against the real Run key (value byte-identical after two calls); frozen-simulated toggle verified off->on->off with all winreg functions mocked; user's real setting intact and re-verified at session end. Disclosed: a first harness attempt with an incomplete mock briefly touched the real key (wrote then deleted); restored immediately to the exact original value; the application's own code was not involved — see docs/missions/6h-final-release-qa-third-run.md]
 - Verify light and dark themes. [PASS by Missions 6D and 6H — controlled registry flip: light bg #F3F3F3 then dark bg #202020, registry restored; packaged exe rendered #202020 under dark system theme in the 6H smoke run]
 - Verify theme refresh after leaving the doghouse. [PASS by Missions 6D and 6H — show() re-detects: bg #F3F3F3 under light, #202020 after flip + re-show, registry restored]
@@ -369,13 +369,27 @@ Final acceptance gate
   99/99 tests, fresh build within every resource ceiling, and every functional item
   verified, including the previously blocked real grace-kill with children, unrelated
   leftover eaten, same-folder neighbor surviving, and picker self/parent exclusion.
-  Every item passed except one residue: the physical tray-menu click for Quit is
-  UNVERIFIED (not scriptable from CLI); the production quit-handler path it dispatches to
-  is fully verified (see item 8 of docs/missions/6h-final-release-qa-third-run.md). Per
-  the verification-only rule, the Final acceptance gate remains NOT MET solely on that
-  residue — one manual click-through, or explicitly accepting the long-standing documented
-  deviation, closes it. Also noted for a future cleanup mission (pre-existing, not one of
-  the 6D defects): Watcher shadows threading.Thread._stop with an Event
-  (watchdog_core.py:460), making Thread.is_alive() raise TypeError after stop();
-  production code never does that.
+  Mission 6I closes the last remaining manual item: the repository owner performed the
+  physical tray-menu Quit by hand (right-clicked the tray icon, clicked Quit, confirmed
+  the process actually exited) and directly inspected the HKCU Run key, confirming the
+  `Process Watchdog` value points to
+  `C:\Users\wpedi\Process Watchdog\dist\ProcessWatchdog.exe` — which also confirms
+  Mission 6H's disclosed test-harness incident left no lasting effect.
+- Final acceptance gate: MET.
+  - Mission 1-5 built and verified the product (structure, watch/meal model, feeding
+    engine, dog-language status, themed interface), each with its own acceptance gates.
+  - Mission 6A delivered the guide/animation content; 6B/6D ran release QA and 6D found
+    four defects (kill-engine .info crash, Add Watchdog crash, Retrain locked-entry crash
+    with meal-target data loss, picker parent self-display).
+  - Missions 6E/6F/6G fixed all four with real-shape regression tests.
+  - Mission 6H verified everything automatable end-to-end: 99/99 tests, fresh build within
+    every resource ceiling, full render smoke, real grace-kill with children, neighbor
+    survival, migration, themes, animations, logos, and the app-side tray-quit path.
+  - Mission 6I records the owner's manual tray-Quit confirmation and Run-key inspection,
+    closing the sole UNVERIFIED residue.
+  - Result: every line of the Final verification checklist and every Final acceptance
+    gate item above now carries verified evidence. The gate is MET.
+  - Still noted for a future cleanup mission (pre-existing, not a gate item): Watcher
+    shadows threading.Thread._stop with an Event (watchdog_core.py:460), making
+    Thread.is_alive() raise TypeError after stop(); production code never does that.
 This is the complete punch board and contains the approved product behavior, safety boundaries, visual direction, resource limits, migration requirements, and final verification gates.
