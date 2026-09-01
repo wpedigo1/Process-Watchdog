@@ -304,36 +304,36 @@ Trainer’s Guide
 - Keep instructions concise and accurate. [CLOSED by Mission 6A]
 - End manual or timed closure with the bite animation. [CLOSED — already true; wiring verified pre-existing]
 Final verification
-- Run the complete automated test suite. [PASS by Mission 6D — 89/89 on the real Windows machine]
-- Run syntax and import validation. [PASS by Missions 6B/6C — ast.parse + import OK; 89 source-level test methods]
-- Verify copied real configuration migration. [PASS by Mission 6D — real legacy `rules` config migrated via copy; all 5 watchdogs and every identity preserved; real file hash-verified untouched]
-- Confirm the live configuration remains unchanged during testing. [PASS by Mission 6D — sha256 identical before/after the whole mission]
-- Verify Add, Retrain, toggle, Rehome, and grace-period behavior. [FAIL by Mission 6D — Add crashes (defect 2), Retrain-with-watched-app crashes and Retrain-ambiguous silently drops meal targets (defect 3); toggle PASS; Rehome PASS (exact dialog text, Keep/Rehome both verified); grace countdown PASS; the kill-engine crash (defect 4) is now FIXED by Mission 6E with real-process regression tests, but the end-to-end grace-kill walkthrough has not been re-run — re-verify in the next release-QA pass]
-- Verify unrelated selected leftovers are eaten in a controlled test. [BLOCKED at runtime by Mission 6D's defect 4 (now FIXED by Mission 6E — real parent+child kill verified at the engine level in tests/test_kill_real_processes.py); the full end-to-end leftover walkthrough still needs the next release-QA re-run]
-- Verify unselected same-folder processes survive. [UNVERIFIED at runtime by Mission 6D — vacuous pass only (defect 4 prevented any kill); scoping logic unit-covered]
-- Verify protected processes and Process Watchdog never appear. [PARTIAL by Mission 6D — own pid excluded (verified); Browse + name-only protected rejection verified with exact Mission 3 message; BUT defect 1: the packaged app's own parent ProcessWatchdog.exe IS listed in its picker (display-level violation; kill boundary still protected)]
-- Verify main X hides without exiting. [PASS by Mission 6D — real WM_DELETE_WINDOW path, animation, withdrawn, process alive]
-- Verify doghouse button hides without exiting. [PASS by Mission 6D — real button command, same checks]
-- Verify tray Quit exits. [UNVERIFIED — tray menu not scriptable from CLI; documented taskkill deviation used; not claimed]
-- Verify Start with Windows behavior. [PARTIAL by Mission 6D — real Run key contains the app's exact-format registration (user's own setting); read logic verified against the real key frozen-simulated; source-level non-frozen no-op guard verified; tray UI round-trip itself not scriptable; user setting deliberately untouched]
-- Verify light and dark themes. [PASS by Mission 6D — controlled registry flip: light at construction, dark rendered after; exe rendered dark while system dark; two independent light/dark launch observations]
-- Verify theme refresh after leaving the doghouse. [PASS by Mission 6D — hide→show re-detect: 49,636 dark-palette pixels post-show vs 2 before, root bg #202020, registry restored]
-- Verify logo visibility in all required windows. [PASS by Mission 6D — measured pixel analysis: rendered logo patches at exact positions in ConfigWindow, watchdogDialog, Trainer's Guide, and the packaged exe; screenshots saved as artifacts]
-- Verify every bite-animation path. [PASS by Mission 6D — main X x2, doghouse x2, guide Close, guide X, guide 30s timer; window shape restored (GetWindowRgn=0, 500x460) after every path; GDI counter inconclusive (read 0), region/no-broken-shape evidence is the substantive check]
-- Build the one-file executable. [DONE by Missions 6B and 6D — build.bat completed both times]
-- Smoke-test the packaged executable. [PASS by Mission 6D — exe launches, first-run window opens and renders (native child HWNDs, exact palette bg, logo), no crash, hidden-to-tray idle run measured; the 6B startup crash is confirmed fixed in the packaged build]
+- Run the complete automated test suite. [PASS by Mission 6H — 99/99 on the real Windows machine]
+- Run syntax and import validation. [PASS by Missions 6B/6C/6H — ast.parse + import OK; 99 source-level test methods]
+- Verify copied real configuration migration. [PASS by Missions 6D and 6H — real legacy `rules` config (5 watchdogs) copied and loaded, ids/names intact, real file hash-verified untouched]
+- Confirm the live configuration remains unchanged during testing. [PASS by Missions 6D and 6H — sha256 identical before/after the whole session]
+- Verify Add, Retrain, toggle, Rehome, and grace-period behavior. [PASS by Mission 6H — Add (watchdog=None) constructs+saves; Retrain-with-watched-app shows locked row and preserves all meal targets incl. offline name-only; toggle both directions; Rehome Keep/Rehome; real end-to-end grace kill with child: countdown, parent+child+leftover terminated, "Eaten by ..." displayed and persisted]
+- Verify unrelated selected leftovers are eaten in a controlled test. [PASS by Mission 6H — leftover.exe (unrelated folder) terminated in the real end-to-end grace-kill walkthrough]
+- Verify unselected same-folder processes survive. [PASS by Mission 6H — neighbor.exe in the watched app's folder, NOT selected, verified alive after the kill]
+- Verify protected processes and Process Watchdog never appear. [PASS by Mission 6H — picker verified while a live same-exe different-pid sibling ran: zero self-exe entries (Mission 6G fix, the exact parent-bootloader shape); regression test covers the shape; packaged binary's own picker not introspectable from outside — stated]
+- Verify main X hides without exiting. [PASS by Missions 6D and 6H — real WM_DELETE_WINDOW path, animation, withdrawn, GetWindowRgn=0, process alive]
+- Verify doghouse button hides without exiting. [PASS by Missions 6D and 6H — real button command, same checks]
+- Verify tray Quit exits. [PARTIAL by Mission 6H — production quit-handler shape (watcher.stop + icon.stop + root.destroy) verified against a real pystray icon/Watcher/ConfigWindow: mainloop exits in 0.53s, watcher stop signal set, icon stopped; packaged instance closed via documented taskkill deviation with tasklist confirmation; the physical tray-menu click itself remains UNVERIFIED (not scriptable) and is the sole item keeping the Final acceptance gate unmet]
+- Verify Start with Windows behavior. [PASS by Mission 6H for the decision logic — source-mode no-op guard verified against the real Run key (value byte-identical after two calls); frozen-simulated toggle verified off->on->off with all winreg functions mocked; user's real setting intact and re-verified at session end. Disclosed: a first harness attempt with an incomplete mock briefly touched the real key (wrote then deleted); restored immediately to the exact original value; the application's own code was not involved — see docs/missions/6h-final-release-qa-third-run.md]
+- Verify light and dark themes. [PASS by Missions 6D and 6H — controlled registry flip: light bg #F3F3F3 then dark bg #202020, registry restored; packaged exe rendered #202020 under dark system theme in the 6H smoke run]
+- Verify theme refresh after leaving the doghouse. [PASS by Missions 6D and 6H — show() re-detects: bg #F3F3F3 under light, #202020 after flip + re-show, registry restored]
+- Verify logo visibility in all required windows. [PASS by Missions 6D and 6H — real PhotoImage+Label verified in ConfigWindow, watchdogDialog, Trainer's Guide; packaged exe logo region pixel-verified in the 6H smoke capture (768 unique colors vs uniform background); RehomeDialog deliberately has no logo (never did)]
+- Verify every bite-animation path. [PASS by Missions 6D and 6H — main X and doghouse paths verified with GetWindowRgn=0 after each animation; guide Close and timer path animated to complete destruction (no post-destroy region read possible — stated); GDI counter remains inconclusive, region check is the substantive evidence]
+- Build the one-file executable. [DONE by Missions 6B, 6D, and 6H — build.bat completed]
+- Smoke-test the packaged executable. [PASS by Missions 6D and 6H — first-run window opens and renders (17 native child HWNDs, #202020 palette, PrintWindow pixel evidence for logo/table); later-launch hidden-to-tray behavior also observed; idle run measured]
 - Verify bundled icons and images. [PASS by Mission 6D — window icon + logo verified in the packaged exe capture; tray icon not directly observed (not scriptable) — noted]
-- Compare final executable size against baseline. [PASS by Mission 6D — 31,528,986 bytes vs 32,548,945 ceiling (+28,617 vs baseline)]
-- Compare idle memory against baseline. [PASS by Mission 6D — child RSS 46,551,040-46,600,192 (below baseline's ~48.3 MB, well under the ~53.3 MB ceiling); parent 8.7 MB unchanged]
-- Compare CPU, threads, handles, and polling behavior. [PASS by Mission 6D — CPU min/median 0.00 both pids (one 1.60% max sample on the dormant bootloader parent, reported honestly); threads 4/9 exactly matches baseline (no new permanent threads); handles 100/524]
-- Confirm every hard resource limit passes. [PASS by Mission 6D — size, memory, threads all within limits; no new dependency (versions identical to baseline)]
-- Inspect the final diff for unrelated changes. [PASS by Mission 6D — clean working tree throughout; QA scripts/artifacts kept in temp]
-- Commit only verified work. [PASS by Missions 6B/6C/6D — docs and fixes only as scoped]
+- Compare final executable size against baseline. [PASS by Mission 6H — 31,527,711 bytes vs 32,548,945 ceiling]
+- Compare idle memory against baseline. [PASS by Mission 6H — child RSS 44,171,264-44,421,120 (below baseline and 6D); parent 8.76-8.80 MB]
+- Compare CPU, threads, handles, and polling behavior. [PASS by Mission 6H — steady-state CPU 0.00 both pids after re-sampling (transient post-launch max 3.10% reported honestly); threads 4/9 matches baseline; handles 100/551-572]
+- Confirm every hard resource limit passes. [PASS by Mission 6H — size, memory, threads all within limits; no dependency drift (versions identical pre/post build)]
+- Inspect the final diff for unrelated changes. [PASS by Missions 6D and 6H — clean working tree throughout; QA scripts/artifacts kept in temp]
+- Commit only verified work. [PASS by Missions 6B/6C/6D/6H — docs and fixes only as scoped]
 Final acceptance gate
-- All requested behavior is present. [NOT MET — defects 2, 3, 4 break Add, Retrain, and the feeding engine]
-- All automated tests pass. [PASS — 89/89]
-- Packaged runtime checks pass. [PARTIAL — launch/window/theme/animations/tray-hide PASS; feeding engine broken (defect 4)]
-- Existing Watchdogs remain usable. [PARTIAL — migration and display verified; Retrain can silently drop meal targets (defect 3)]
+- All requested behavior is present. [PASS by Mission 6H — all four 6D defects verified fixed end-to-end]
+- All automated tests pass. [PASS — 99/99]
+- Packaged runtime checks pass. [PASS — launch/window/theme/render/idle/shutdown all PASS in 6H]
+- Existing Watchdogs remain usable. [PASS — migration intact; Retrain preserves all meal targets incl. offline name-only entries]
 - Destructive behavior stays inside the approved boundary. [PASS — disposable-only rule held; no real app touched; real config untouched; user Run setting untouched]
 - Dog terminology is consistent. [PASS — observed live in the driven UI: Call Dog Off Watch / Put Dog on Watch / Off watch. / Hungry — eating in Ns. / Rehome texts / Hide Dogs in the Doghouse / Trainer's Guide countdown title]
 - Resource limits pass. [PASS — all measured values within limits]
@@ -364,7 +364,18 @@ Final acceptance gate
   different-PID PyInstaller parent with the same executable path. A mocked process-group
   regression test covers the exe-path match. See
   docs/missions/6g-fix-picker-parent-display.md.
-- All four defects found by Mission 6D are closed by Missions 6E, 6F, and 6G. The Final
-  acceptance gate is NOT met until the full release-QA checklist is rerun end-to-end
-  against this fixed code. See docs/missions/6d-final-release-qa-rerun.md.
+- All four defects found by Mission 6D are closed by Missions 6E, 6F, and 6G. Mission 6H
+  re-ran the full release-QA checklist end-to-end against the fixed code (third run):
+  99/99 tests, fresh build within every resource ceiling, and every functional item
+  verified, including the previously blocked real grace-kill with children, unrelated
+  leftover eaten, same-folder neighbor surviving, and picker self/parent exclusion.
+  Every item passed except one residue: the physical tray-menu click for Quit is
+  UNVERIFIED (not scriptable from CLI); the production quit-handler path it dispatches to
+  is fully verified (see item 8 of docs/missions/6h-final-release-qa-third-run.md). Per
+  the verification-only rule, the Final acceptance gate remains NOT MET solely on that
+  residue — one manual click-through, or explicitly accepting the long-standing documented
+  deviation, closes it. Also noted for a future cleanup mission (pre-existing, not one of
+  the 6D defects): Watcher shadows threading.Thread._stop with an Event
+  (watchdog_core.py:460), making Thread.is_alive() raise TypeError after stop();
+  production code never does that.
 This is the complete punch board and contains the approved product behavior, safety boundaries, visual direction, resource limits, migration requirements, and final verification gates.
