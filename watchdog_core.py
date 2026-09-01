@@ -557,7 +557,11 @@ def get_process_groups(hide_system=True):
     groups = []
     for d, name_to_exe in by_dir.items():
         if len(name_to_exe) >= 2:
-            label = os.path.basename(d.rstrip("\\/")) or d
+            # Label the group by its SHORTEST exe filename (case-insensitive,
+            # ties broken alphabetically) instead of the install-directory
+            # basename: MSIX/Store installs share opaque per-installation hash
+            # directories, so the basename is often unreadable.
+            label = min(name_to_exe, key=lambda n: (len(n.lower()), n.lower()))
             entries = sorted(name_to_exe.items(), key=lambda t: t[0].lower())
             groups.append((label, entries))
         else:

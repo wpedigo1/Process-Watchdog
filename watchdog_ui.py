@@ -66,6 +66,8 @@ def apply_theme(widget, palette):
             child.config(bg=palette["bg"])
         elif cls == "Entry":
             child.config(bg=palette["entry_bg"], fg=palette["fg"], insertbackground=palette["fg"])
+        elif cls == "Spinbox":
+            child.config(bg=palette["entry_bg"], fg=palette["fg"], insertbackground=palette["fg"])
         elif isinstance(child, ttk.Treeview):
             style = ttk.Style()
             style.theme_use("clam")
@@ -289,12 +291,36 @@ class watchdogDialog(tk.Toplevel):
         super().__init__(master)
         self.result = None
         self.geometry("520x760")
-        self.minsize(460, 620)
+        self.minsize(480, 500)
         apply_window_icon(self)
         watchdog = watchdog or {}
 
+        # Save/Cancel are packed FIRST with side="bottom": the pack manager
+        # reserves bottom-anchored space in packing order, so the button row
+        # stays reachable no matter how tall the content above it grows.
+        btn_row = tk.Frame(self)
+        tk.Button(btn_row, text="Save", command=self._save).pack(side="right")
+        tk.Button(btn_row, text="Cancel", command=self.destroy).pack(side="right", padx=(0, 6))
+        btn_row.pack(side="bottom", fill="x", padx=8, pady=8)
+
+        # Everything between the header and the buttons lives in a
+        # scrollable container (Canvas + Scrollbar + inner Frame) so the
+        # dialog remains usable at any font, DPI scaling, or content height.
+        mid = tk.Frame(self)
+        canvas = tk.Canvas(mid, highlightthickness=0)
+        vsb = ttk.Scrollbar(mid, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=vsb.set)
+        vsb.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+        body = tk.Frame(canvas)
+        canvas.create_window((0, 0), window=body, anchor="nw", tags="body")
+        body.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.bind("<Configure>", lambda e: canvas.itemconfigure("body", width=e.width))
+        canvas.bind("<MouseWheel>", lambda e: canvas.yview_scroll(-e.delta // 120, "units"))
+        mid.pack(fill="both", expand=True)
+
         self._logo_img = load_logo_img(40)
-        header = tk.Frame(self)
+        header = tk.Frame(body)
         header.pack(fill="x", padx=8, pady=(8, 0))
         tk.Label(header, image=self._logo_img).pack(side="left")
         tk.Label(
@@ -311,28 +337,28 @@ class watchdogDialog(tk.Toplevel):
         self.title(f"Retrain {watchdog.get('name', '')}".strip()
                    if watchdog.get("name") else "Train a Watchdog")
 
-        tk.Label(self, text="Watchdog name:").pack(anchor="w", padx=8, pady=(8, 0))
-        self.name_entry = tk.Entry(self)
+        tk.Label(body, text="Watchdog name:").pack(anchor="w", padx=8, pady=(8, 0))
+        self.name_entry = tk.Entry(body)
         self.name_entry.insert(0, watchdog.get("name", ""))
         self.name_entry.pack(fill="x", padx=8)
 
         # --- Watch This App (single-select) ---
-        tk.Label(self, text="Watch this app", font=("Segoe UI", 10, "bold")).pack(
+        tk.Label(body, text="Watch this app", font=("Segoe UI", 10, "bold")).pack(
             anchor="w", padx=8, pady=(8, 0))
         tk.Label(
-            self,
+            body,
             text="Pick the ONE app to watch. Its window closing is what triggers cleanup.",
             fg="gray", wraplength=460, justify="left"
         ).pack(anchor="w", padx=8)
         self.watch_picker = ProcessPicker(
-            self, initial=[existing_app] if existing_app else None,
+            body, initial=[existing_app] if existing_app else None,
             selectmode="browse",
             hint="Pick one app from the list to watch. Its matching is by exact install location.",
             on_select=self._watch_changed,
         )
         self.watch_picker.pack(fill="x", padx=8, pady=(4, 0))
 
-        watch_add_row = tk.Frame(self)
+        watch_add_row = tk.Frame(body)
         watch_add_row.pack(fill="x", padx=8, pady=(4, 0))
         tk.Button(watch_add_row, text="Browse for .exe\u2026",
                   command=self._browse_watch_exe).pack(side="left")
@@ -344,21 +370,21 @@ class watchdogDialog(tk.Toplevel):
                   command=self._add_watch_manual).pack(side="left", padx=(6, 0))
 
         # --- Eat These Leftovers (multi-select, locked watched app) ---
-        tk.Label(self, text="Eat these leftovers", font=("Segoe UI", 10, "bold")).pack(
+        tk.Label(body, text="Eat these leftovers", font=("Segoe UI", 10, "bold")).pack(
             anchor="w", padx=8, pady=(8, 0))
         tk.Label(
-            self,
+            body,
             text="Extra processes to force-kill when the watched app closes "
                  "(the watched app itself is always eaten, shown below as locked).",
             fg="gray", wraplength=460, justify="left"
         ).pack(anchor="w", padx=8)
         self.meal_picker = ProcessPicker(
-            self, initial=existing_meal, locked=existing_app_ident,
+            body, initial=existing_meal, locked=existing_app_ident,
             hint="Ctrl/Shift-click to combine as many leftovers as you want.",
         )
-        self.meal_picker.pack(fill="both", expand=True, padx=8, pady=(4, 0))
+        self.meal_picker.pack(fill="x", padx=8, pady=(4, 0))
 
-        add_row = tk.Frame(self)
+        add_row = tk.Frame(body)
         add_row.pack(fill="x", padx=8, pady=(4, 0))
         tk.Button(add_row, text="Browse for .exe\u2026", command=self._browse_exe).pack(side="left")
         self.manual_var = tk.StringVar()
@@ -370,13 +396,8 @@ class watchdogDialog(tk.Toplevel):
         note = ("The watched app is matched by exact install location, so picking an app "
                 "like \u201cfoo.exe\u201d won't accidentally also match another app that "
                 "shares its name. Leftovers added by filename only are matched by name.")
-        tk.Label(self, text=note, fg="#666", wraplength=460, justify="left").pack(
+        tk.Label(body, text=note, fg="#666", wraplength=460, justify="left").pack(
             anchor="w", padx=8, pady=(6, 0))
-
-        btn_row = tk.Frame(self)
-        btn_row.pack(fill="x", padx=8, pady=8, side="bottom")
-        tk.Button(btn_row, text="Save", command=self._save).pack(side="right")
-        tk.Button(btn_row, text="Cancel", command=self.destroy).pack(side="right", padx=(0, 6))
 
         self.transient(master)
         self.grab_set()
@@ -628,7 +649,7 @@ class ConfigWindow:
         self._last_result = {}  # watchdog_id -> {"name": str, "killed": [..], "failed": [..]}
         self.root = tk.Tk()
         self.root.title(APP_NAME)
-        self.root.geometry("500x460")
+        self.root.geometry("640x480")
         self.root.protocol("WM_DELETE_WINDOW", self.hide)
         apply_window_icon(self.root)
         self.root.withdraw()  # start hidden — only the tray icon opens it
@@ -665,8 +686,11 @@ class ConfigWindow:
         self.tree.column("status", width=220, anchor="w")
         self.tree.pack(fill="both", expand=True, padx=10, pady=6)
 
+        # Two button rows: per-watchdog management actions, then whole-window
+        # actions. Six multi-word buttons cannot fit one 640px line — the
+        # split is what guarantees every button stays visible.
         btn_row = tk.Frame(self.root)
-        btn_row.pack(fill="x", padx=10, pady=(0, 10))
+        btn_row.pack(fill="x", padx=10)
         tk.Button(btn_row, text="Add Watchdog", command=self.add_watchdog).pack(side="left")
         tk.Button(btn_row, text="Retrain", command=self.edit_watchdog).pack(side="left", padx=6)
         self.toggle_btn = tk.Button(btn_row, text="Put Dog on Watch", command=self.toggle_watchdog)
@@ -676,8 +700,11 @@ class ConfigWindow:
             self._tick_status()
 
         tk.Button(btn_row, text="Rehome Dog", command=self.delete_watchdog).pack(side="left", padx=6)
-        tk.Button(btn_row, text="Hide Dogs in the Doghouse", command=self.hide).pack(side="right")
-        tk.Button(btn_row, text="Trainer's Guide", command=self.open_guide).pack(side="right", padx=(0, 6))
+
+        window_row = tk.Frame(self.root)
+        window_row.pack(fill="x", padx=10, pady=(4, 10))
+        tk.Button(window_row, text="Hide Dogs in the Doghouse", command=self.hide).pack(side="right")
+        tk.Button(window_row, text="Trainer's Guide", command=self.open_guide).pack(side="right", padx=(0, 6))
 
         self.tree.bind("<<TreeviewSelect>>", lambda e: self._update_toggle_label())
         self.tree.bind("<Double-1>", lambda e: self._show_result_details())
@@ -733,7 +760,12 @@ class ConfigWindow:
             rid = watchdog["id"]
             if not self.tree.exists(rid):
                 continue
-            if not watchdog.get("enabled", True):
+            if watchdog.get("watched_app") is None:
+                # Deliberately first, ahead of disabled/pending/open: a dog
+                # that can never watch anything must not be mistaken for a
+                # correctly-configured, currently-idle one.
+                status = "Needs setup — pick a Watch app in Retrain."
+            elif not watchdog.get("enabled", True):
                 status = "Off watch."
             elif rid in pending:
                 status = f"Hungry \u2014 eating in {int(pending[rid]) + 1}s."
